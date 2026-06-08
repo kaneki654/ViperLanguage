@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "viper-lang"
-version = "0.0.2"
+version = "Alpha-0.0.2"
 description = "Viper - a Python-Connected language"
 authors = [{name = "G0Ju.VBS", email = "kaneivbs@gmail.com"}]
 dependencies = ["lark>=1.1.0"]

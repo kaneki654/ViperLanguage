@@ -1,4 +1,4 @@
-__version__ = "0.0.2"
+__version__ = "alpha-0.0.2"
 
 from .parser import parser
 from .codegen import transpile
