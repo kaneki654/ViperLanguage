@@ -24,9 +24,50 @@ def run_file(path: str) -> int:
 
 
 def _needs_continuation(buffer: str) -> bool:
-    """True while a block is still open (last non-blank line ends in ':')."""
+    """True while a block is open (unbalanced brackets or last non-blank line ends in ':').
+
+    This is much more reliable than the old heuristic that only checked for ':'.
+    We also track open brackets so multi-line expressions work correctly.
+    """
+    # Count unbalanced brackets — open means we're in the middle of an expression
+    opens = {"(": ")", "[": "]", "{": "}"}
+    closes = set(opens.values())
+    stack = []
+    in_string = None
+    escape = False
+
+    for ch in buffer:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_string:
+            if ch == in_string:
+                in_string = None
+            continue
+        if ch in ('"', "'"):
+            in_string = ch
+            continue
+        if ch in opens:
+            stack.append(opens[ch])
+        elif ch in closes:
+            if stack and stack[-1] == ch:
+                stack.pop()
+
+    if stack:  # Unbalanced brackets
+        return True
+
+    # Check if last non-empty line ends with a block-opening colon
     lines = [ln for ln in buffer.splitlines() if ln.strip()]
-    return bool(lines) and lines[-1].rstrip().endswith(":")
+    if not lines:
+        return False
+    last = lines[-1].rstrip()
+    # Strip inline comments before checking
+    if "#" in last:
+        last = last[:last.index("#")].rstrip()
+    return last.endswith(":")
 
 
 def _install_repl_completion(ns: dict) -> None:
@@ -63,12 +104,24 @@ def repl() -> int:
             buffer = ""
             continue
 
+        # An empty line after a block flushes the buffer
+        if not line.strip() and buffer:
+            try:
+                run_repl_line(buffer, ns)
+            except ViperError as e:
+                print(str(e), file=sys.stderr)
+            buffer = ""
+            continue
+
         buffer = buffer + line + "\n" if buffer else line + "\n"
 
-        # Inside a block: keep reading until a blank line closes it.
-        if _needs_continuation(buffer) or (buffer.count("\n") > 1 and line.strip()):
-            if line.strip():
-                continue
+        if _needs_continuation(buffer):
+            continue
+
+        # Only flush if the block is closed (blank line or no open colon)
+        if buffer.rstrip().endswith(":"):
+            # Still opening a block — keep reading
+            continue
 
         try:
             run_repl_line(buffer, ns)
@@ -90,12 +143,12 @@ def _start_lsp() -> int:
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="viper", description="The Viper language.")
-    parser.add_argument("--version", action="version",
-                        version=f"viper {__version__}")
-    parser.add_argument("--lsp", action="store_true",
-                        help="run the Viper language server (for editors)")
-    sub = parser.add_subparsers(dest="command")
+    ap = argparse.ArgumentParser(prog="viper", description="The Viper language.")
+    ap.add_argument("--version", action="version",
+                    version=f"viper {__version__}")
+    ap.add_argument("--lsp", action="store_true",
+                    help="run the Viper language server (for editors)")
+    sub = ap.add_subparsers(dest="command")
 
     run_p = sub.add_parser("run", help="run a .vp file")
     run_p.add_argument("file")
@@ -107,7 +160,7 @@ def main(argv=None) -> int:
 
     sub.add_parser("topics", help="list the available help topics")
 
-    args = parser.parse_args(argv)
+    args = ap.parse_args(argv)
 
     if args.lsp:
         return _start_lsp()
@@ -125,7 +178,7 @@ def main(argv=None) -> int:
     if args.command == "topics":
         from .help import list_topics
         return list_topics()
-    return repl()  # bare `viper` or `viper repl`
+    return repl()
 
 
 if __name__ == "__main__":
