@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: viper-lang
+Version: 0.0.2
+Summary: Viper - a Python-Connected language
+Author-email: "G0Ju.VBS" <kaneivbs@gmail.com>
+License: wala license ginawa ko lang kasi gusto ko
+Requires-Dist: lark>=1.1.0
+Provides-Extra: lsp
+Requires-Dist: pygls<3,>=2.1; extra == "lsp"
