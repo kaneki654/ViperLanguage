@@ -80,9 +80,13 @@ class _Codegen:
         self.emit(f"{name} = {self.gen_expr(expr)}", indent, node.meta.line)
 
     def _stmt_assign_stmt(self, node, indent):
-        name = node.children[0].value
+        target = node.children[0]
         expr = node.children[1]
-        self.emit(f"{name} = {self.gen_expr(expr)}", indent, node.meta.line)
+        self.emit(
+            f"{self.gen_expr(target)} = {self.gen_expr(expr)}",
+            indent,
+            node.meta.line
+        )
 
     def _stmt_aug_assign_stmt(self, node, indent):
         name = node.children[0].value

@@ -36,7 +36,7 @@ VIPER_GRAMMAR = r"""
     dotted_name: NAME ("." NAME)*
 
     let_stmt: "let" NAME (":" type)? "=" expr
-    assign_stmt: NAME "=" expr
+    assign_stmt: postfix "=" expr
     aug_assign_stmt: NAME aug_op expr
     !aug_op: "+=" | "-=" | "*=" | "/=" | "//=" | "%=" | "**="
     expr_stmt: expr
@@ -91,9 +91,8 @@ VIPER_GRAMMAR = r"""
     trailer: "(" arg_list? ")"                           -> call_trailer
            | "[" slice_expr "]"                          -> index_trailer
            | "." NAME                                    -> attr_trailer
-    slice_expr: expr (":" expr? (":" expr?)?)?           -> slice
+    slice_expr: expr ":" expr? (":" expr?)?              -> slice
               | expr                                     -> index_expr
-
     ?atom: NUMBER                                        -> number
          | STRING                                        -> string
          | FSTRING                                       -> fstring

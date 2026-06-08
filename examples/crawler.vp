@@ -1,6 +1,80 @@
-from BeautifulSoup import BeautifulSoup
-import urllib2
-import re
-from fake_useragent import UserAgent
-let ua = UserAgent()
+from urllib.request import urlopen
+from urllib.parse import urljoin, urlparse
+from html.parser import HTMLParser
+import time
 
+class LinkParser(HTMLParser):
+    fn __init__(self):
+        super().__init__()
+        self.links = []
+    fn handle_starttag(self, tag, attrs):
+        if tag == "a":
+            for attr in attrs:
+                if attr[0] == "href":
+                    self.links.append(attr[1])
+fn get_links(html: str, base_url: str) -> list:
+    let lp = LinkParser()
+    lp.feed(html)
+    let result = []
+    for href in lp.links:
+        if href is None:
+            continue
+        let full = urljoin(base_url, href)
+        let parsed = urlparse(full)
+        if parsed.scheme in ["http", "https"]:
+            result.append(full)
+    return result
+fn fetch(url: str) -> str:
+    try:
+        let response = urlopen(url, timeout=5)
+        let raw = response.read()
+        try:
+            return raw.decode("utf-8")
+        except Exception:
+            return raw.decode("latin-1")
+    except Exception as e:
+        print(f" [ERROR] {url} - {e}")
+        return ""
+fn same_domain(url: str, base: str) -> bool:
+    return urlparse(url).netloc == urlparse(base).netloc
+fn crawl(start_url: str, max_pages: int):
+    let visited = set()
+    let queue = [start_url]
+    let base = start_url
+    let count = 0
+    print(f"Crawling: {start_url}")
+    print(f"Max Pages: {max_pages}")
+    print("---")
+    while len(queue) > 0 and count < max_pages:
+        let url = queue[0]
+        queue.pop(0)
+        if url in visited:
+            continue
+        visited.add(url)
+        count += 1
+        print(f"[{count}] {url}")
+        let html = fetch(url)
+        if html == "":
+            continue
+        let links = get_links(html, url)
+        let new_links = 0
+        for link in links:
+            if link not in visited and same_domain(link, base):
+                queue.append(link)
+                new_links += 1
+        print(f"Found {new_links} new links")
+        time.sleep(0.5)
+    print("---")
+    print(f"Crawled {count} pages")
+    print(f"Unique URLs visited: {len(visited)}")
+let target = input("Target: ").strip()
+if not target.startswith("http"):
+    target = "https://" + target
+let raw_limit = input("set max pages: ").strip()
+let limit = 10
+if raw_limit != "":
+    try:
+        limit = int(raw_limit)
+    except ValueError:
+        print("Invalid number, using default of 10")
+crawl(target, limit)
