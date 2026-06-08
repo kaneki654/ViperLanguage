@@ -1,77 +1,230 @@
-i build a programming language that is connected to python modules
-**(ALPHA-0.0.1)**
+# Viper Language
 
-it transpiles .vp -> Python, runs files and a REPL, has clear errors, pipes, match, lamdas, and  a mutable-default guard (all verified). The gap is that it doesn't yet
-**FEEL** like a real, installable language:
-- it only runs via .venv/bin/viper there's no install flow that puts **viper** on your PATH
-- Editing .vp in Vim gives no help no syntax highlighting, no autocomplete, no live error checking
- 
-**(ALPHA-0.0.2)**
-For the Goal (ALPHA-0.0.2): an install.sh that makes viper global, a real LSP Server (viper --lsp) so vim/Neovim get autocomplete + diagnostics, and a viper help that runs
-an interactive tutorial plus **Decisions made with you:** install = script that tries pipx, falls back to venv+symlink; autocomplete = full LSP server; help = both interactive
-tutorial AND topic reference.
-**Approach**
-viper/keywords.py (new) — shared vocabulary
+A clean, Python-connected scripting language. Write `.vp`, run Python.
 
-     - KEYWORDS = the 23 grammar keywords (let fn if elif else while for in match case return break continue pass import from spawn and or not is True False None).
-     - BUILTINS = curated runnable subset (print len range int float str bool list dict set tuple sum min max abs sorted enumerate zip map filter input round type repr).
-     - Used by both lsp.py and the Vim syntax file (keep them in sync).
+```
+let name = "world"
+print(f"Hello, {name}!")
+```
 
-viper/lsp.py (new) — pygls v2 server (imported only on --lsp)
+Viper transpiles to Python, so every Python module works out of the box — `import math`, `import os`, anything.
 
-     - from lsprotocol import types as lsp; from pygls.lsp.server import LanguageServer; from lark.exceptions import UnexpectedInput; from .parser import parser; from .keywords import
-     KEYWORDS, BUILTINS.
-     - server = LanguageServer("viper-lsp", "v0.2").
-     - @server.feature(lsp.TEXT_DOCUMENT_COMPLETION) → CompletionList(is_incomplete=False, items=...): keywords (CompletionItemKind.Keyword) + builtins (CompletionItemKind.Function).
-     - _validate(ls, uri): doc = ls.workspace.get_text_document(uri); parser.parse(doc.source); on UnexpectedInput: line=max((e.line or 1)-1,0), col=max((e.column or 1)-1,0), clamp line to
-     last source line; build Diagnostic(range=Range(Position(line,col),Position(line,col+1)), message=str(e).splitlines()[0], severity=DiagnosticSeverity.Error, source="viper"). Always publish
-      (empty list clears stale errors) via ls.text_document_publish_diagnostics(PublishDiagnosticsParams(uri=uri, diagnostics=...)).
-     - @server.feature(lsp.TEXT_DOCUMENT_DID_OPEN) and TEXT_DOCUMENT_DID_CHANGE → call _validate.
-     - start() → server.start_io().
+---
 
-viper/tutorial.py (new) — interactive ~5-min tour
+## Changelog
 
-     - LESSONS: ~8 entries {title, explain, code} covering: print, let+types, fn+return, if/elif/else, for+lists, while, match/case, then pipe |> + lambdas + dicts + import math, plus a
-     mutable-default footgun demo showing the friendly error.
-     - _run_example(code): print the source (dimmed), run it live via runtime.run_source(code, "<tutorial>") in a fresh namespace, show output; catch ViperError and print its formatted message
-      (so the footgun lesson renders nicely).
-     - run_tutorial() -> int: banner → per-lesson title/explain/example/live-output → input("Press Enter to continue / q to quit: "); q quits; wrap in try/except (EOFError, KeyboardInterrupt)
-     for clean exit. Ends with "try viper repl".
+### ALPHA-0.0.2-1 *(current)*
 
-viper/help.py (new) — topic reference
+Added in this upgrade (on top of 0.0.2):
 
-     - TOPICS: dict[str,str] (concise paragraph + tiny non-executed example) for let fn if for while match pipe lambda dict list import spawn types.
-     - ALIASES ("|>"→"pipe", "def"→"fn").
-     - show_topic(name) -> int (unknown → message + list_topics(), return 1) and list_topics() -> int.
+- **f-strings** — `f"hello, {name}!"`
+- **Classes** — `class Point:` with optional base classes and decorators
+- **`try`/`except`/`finally`** — full error handling
+- **Augmented assignment** — `x += 1`, `x *= 2`, etc.
+- **Tuples** — `(1, 2, 3)`, `()`, unpacking
+- **Set literals** — `{1, 2, 3}`
+- **List comprehensions** — `[x * x for x in range(10) if x % 2 == 0]`
+- **Slices** — `xs[0:5]`, `xs[::2]`
+- **Decorators** — `@lru_cache(maxsize=128)` on `fn` and `class`
+- **`raise` / `del`** statements
+- **`for`/`while` `else`** clauses
+- **`|` alternation in `match`** — `case "a" | "b":`
+- **`as` pattern binding** — `case _ as val:`
+- **Tuple and class patterns** in `match`
+- **`*args` / `**kwargs`** at call sites
+- **Smarter REPL continuation** — tracks unbalanced brackets, not just trailing `:`
+- **Expanded builtins list** — `isinstance`, `super`, `property`, `any`, `all`, and more
+- **`README.md`** — this file (the repo had none)
+- **Mutable-default guard** extended to sets
 
-viper/_ansi.py (new, tiny)
+### ALPHA-0.0.2
 
-     - supports_ansi() (sys.stdout.isatty()), header(), dim(), bold() — ANSI when supported, plain otherwise. Used by tutorial + help.
+- `install.sh` — makes `viper` global via pipx (falls back to venv + symlink to `~/.local/bin`)
+- `viper --lsp` — pygls v2 Language Server: autocomplete (keywords + builtins) and live error diagnostics
+- `viper help` — interactive 5-minute tutorial that runs code live
+- `viper help <topic>` — topic reference (let, fn, match, pipe, spawn, …)
+- `viper topics` — list all reference topics
+- REPL tab-completion (readline, keywords + builtins + live names)
+- Vim/Neovim editor support: `ftdetect`, `syntax`, `ftplugin/viper.lua` (auto-starts LSP)
 
-viper/cli.py (modify) — dispatch + REPL tab-complete
+### ALPHA-0.0.1
 
-     - Add top-level --lsp flag (works with no subcommand).
-     - Add subparsers: help (optional topic arg) and topics.
-     - Dispatch: --lsp → _start_lsp(); run → existing; help no-arg → run_tutorial(); help <topic> → show_topic(); topics / help topics → list_topics(); default → repl().
-     - _start_lsp(): try: from . import lsp except ImportError: print install with: pip install 'viper-lang[lsp]' (stderr, return 1); else lsp.start().
-     - REPL win (guarded): try: import readline + completer over KEYWORDS + BUILTINS + list(ns), parse_and_bind("tab: complete"), wrapped in try/except ImportError: pass.
+- `.vp` → Python transpiler via lark LALR parser
+- `viper run <file>` and `viper repl`
+- Rust-style error messages with source carets
+- `let`, `fn`, `if`/`elif`/`else`, `for`, `while`, `match`/`case`
+- `|>` pipe operator
+- Lambda expressions: `fn(x) -> x * x`
+- Mutable-default-argument footgun guard
+- `spawn` for fire-and-forget concurrency (threading)
+- Type annotations (optional, pass-through to Python)
 
-     Editor files (new, under editor/)
+---
 
-     - editor/ftdetect/viper.vim: au BufRead,BufNewFile *.vp set filetype=viper.
-     - editor/syntax/viper.vim: syn keyword for keywords + builtins (mirror keywords.py), string region, number match, syn match for |>; no comment rule (grammar has none); hi def link to
-     standard groups. Guard with b:current_syntax.
-     - editor/ftplugin/viper.lua (Neovim): vim.filetype.add({extension={vp="viper"}}) then, guarded by vim.fn.executable("viper")==1, vim.lsp.start({name="viper-lsp", cmd={"viper","--lsp"},
-     root_dir=...vim.fs.find{"pyproject.toml",".git"}...}).
-     - editor/README.md: classic Vim 8 fallback snippet using prabirshrestha/vim-lsp.
+## Install
 
-install.sh (new, project root, POSIX sh, set -e, idempotent)
+```sh
+./install.sh
+```
 
-     1. Resolve SCRIPT_DIR; helper have() { command -v "$1" >/dev/null 2>&1; }.
-     2. Pick best install: if have pipx → pipx install --force "$SCRIPT_DIR" then pipx inject viper-lang "pygls>=2.1,<3" (so --lsp works). Else → create/reuse .venv, pip install -e
-     "$SCRIPT_DIR[lsp]", ln -sf .venv/bin/viper ~/.local/bin/viper, print PATH note.
-     3. Install editor files (both branches): mkdir -p + cp ftdetect/syntax into ~/.vim/ and ~/.config/nvim/, and the lua ftplugin into ~/.config/nvim/ftplugin/.
-     4. Print next-steps (viper help, viper repl, viper run examples/hello.vp, PATH + nvim notes).
-     - POSIX-only (no [[ ]], no arrays); all steps re-runnable.
+Requires **Python 3.10+**. Dependencies: `lark>=1.1.0`. Optional LSP: `pygls>=2.1,<3`.
 
+The script tries `pipx` first (clean, isolated, global). Falls back to a project venv with a symlink to `~/.local/bin/viper`.
 
+---
+
+## Usage
+
+```sh
+viper run hello.vp        # run a .vp file
+viper repl                # interactive prompt
+viper help                # 5-minute interactive tutorial
+viper help match          # quick reference for a topic
+viper topics              # list all reference topics
+viper --lsp               # start the language server (for editors)
+viper --version
+```
+
+---
+
+## Language Reference
+
+### Variables
+
+```
+let x = 10
+let name: str = "Viper"
+x += 1
+x *= 2
+```
+
+`let` introduces a name. Reassign later with plain `=` or augmented operators.
+
+### Functions
+
+```
+fn greet(name: str) -> str:
+    return "Hello, " + name + "!"
+
+fn add(a: int, b: int = 1) -> int:
+    return a + b
+
+let square = fn(x) -> x * x
+```
+
+### Classes
+
+```
+class Point:
+    fn __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+
+    fn __repr__(self) -> str:
+        return f"Point({self.x}, {self.y})"
+
+let p = Point(3.0, 4.0)
+print(p)
+```
+
+### Decorators
+
+```
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+fn fib(n: int) -> int:
+    if n < 2:
+        return n
+    return fib(n - 1) + fib(n - 2)
+```
+
+### Error handling
+
+```
+try:
+    let result = int("not a number")
+except ValueError as e:
+    print(f"Caught: {e}")
+finally:
+    print("done")
+```
+
+### Pattern matching
+
+```
+match cmd:
+    case "quit" | "exit":
+        print("goodbye")
+    case ["move", x, y]:
+        print(f"moving to {x}, {y}")
+    case _ as unknown:
+        print(f"unknown: {unknown}")
+```
+
+### Pipes and lambdas
+
+```
+import math
+
+print([3, 1, 2] |> sorted)
+print(math.sqrt(144) |> int)
+```
+
+`x |> f` means `f(x)`. Chains left to right.
+
+### Comprehensions and slices
+
+```
+let evens = [x for x in range(20) if x % 2 == 0]
+let first5 = evens[0:5]
+let every_other = evens[::2]
+```
+
+### Tuples and sets
+
+```
+let point = (3.0, 4.0)
+let (px, py) = point
+
+let unique = {1, 2, 3, 2, 1}
+```
+
+### Spawn
+
+```
+spawn:
+    print("running in the background")
+```
+
+Runs the block in a daemon thread (fire-and-forget).
+
+### Imports
+
+```
+import math
+from os import path
+from collections import defaultdict
+```
+
+Any Python module works.
+
+---
+
+## Editor Support
+
+After running `install.sh`, open a `.vp` file in **Neovim ≥ 0.8** — syntax highlighting and LSP autocomplete + live errors start automatically.
+
+**Vim 8 users:** see `editor/README.md` for the `prabirshrestha/vim-lsp` setup snippet.
+
+---
+
+## File Extension
+
+`.vp`
+
+---
+
+## License
+
+"wala license ginawa ko lang kasi gusto ko"
