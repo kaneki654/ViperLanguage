@@ -18,6 +18,9 @@ VIPER_GRAMMAR = r"""
                | pass_stmt
                | raise_stmt
                | del_stmt
+               | assert_stmt
+               | global_stmt
+               | nonlocal_stmt
                | expr_stmt
 
     ?compound_stmt: if_stmt
@@ -28,6 +31,7 @@ VIPER_GRAMMAR = r"""
                   | class_def
                   | try_stmt
                   | spawn_stmt
+                  | with_stmt
 
     import_stmt: "import" dotted_name ("," dotted_name)*        -> import_plain
                | "from" dotted_name "import" import_targets      -> import_from
@@ -35,25 +39,35 @@ VIPER_GRAMMAR = r"""
                   | NAME ("," NAME)*
     dotted_name: NAME ("." NAME)*
 
-    let_stmt: "let" NAME (":" type)? "=" expr
-    assign_stmt: postfix "=" expr
-    aug_assign_stmt: NAME aug_op expr
+    // --- assignment / let / aug --------------------------------------------
+    let_stmt: "let" target_list (":" type)? "=" expr
+    assign_stmt: target_list ("=" target_list)+ "=" expr
+    aug_assign_stmt: postfix aug_op expr
     !aug_op: "+=" | "-=" | "*=" | "/=" | "//=" | "%=" | "**="
     expr_stmt: expr
+
+    target_list: target ("," target)* ","?
+    ?target: star_target | postfix
+    star_target: "*" target
+
     return_stmt: "return" expr?
     break_stmt: "break"
     continue_stmt: "continue"
     pass_stmt: "pass"
-    raise_stmt: "raise" expr?
+    raise_stmt: "raise" (expr ("from" expr)?)?
     del_stmt: "del" expr
+    assert_stmt: "assert" expr ("," expr)?
+    global_stmt: "global" NAME ("," NAME)*
+    nonlocal_stmt: "nonlocal" NAME ("," NAME)*
 
-    if_stmt: "if" expr ":" suite elif_clause* else_clause?
-    elif_clause: "elif" expr ":" suite
+    if_stmt: "if" namedexpr ":" suite elif_clause* else_clause?
+    elif_clause: "elif" namedexpr ":" suite
     else_clause: "else" ":" suite
-    while_stmt: "while" expr ":" suite else_clause?
-    for_stmt: "for" pattern "in" expr ":" suite else_clause?
+    while_stmt: "while" namedexpr ":" suite else_clause?
+    for_stmt: "for" target_list "in" expr ":" suite else_clause?
     match_stmt: "match" expr ":" _NL INDENT match_case+ DEDENT
     match_case: "case" pattern ("if" expr)? ":" suite
+
     fn_def: decorator* "fn" NAME "(" param_list? ")" ("->" type)? ":" suite
     class_def: decorator* "class" NAME ("(" arg_list? ")")? ":" suite
     try_stmt: "try" ":" suite except_clause+ else_clause? finally_clause?
@@ -62,6 +76,9 @@ VIPER_GRAMMAR = r"""
     finally_clause: "finally" ":" suite
     spawn_stmt: "spawn" ":" suite
 
+    with_stmt: "with" with_item ("," with_item)* ":" suite
+    with_item: expr ("as" target)?
+
     decorator: "@" dotted_name ("(" arg_list? ")")? _NL
 
     param_list: param ("," param)* ("," "...")?
@@ -69,15 +86,26 @@ VIPER_GRAMMAR = r"""
 
     suite: simple_stmt | _NL INDENT stmt+ DEDENT
 
+    // --- expressions: walrus -> pipe -> ternary -> or/and -> not -> cmp ----
+    // --- -> bitor -> bitxor -> bitand -> shift -> arith -> term -> factor --
+    ?namedexpr: NAME WALRUS expr                         -> walrus
+              | expr
     ?expr: pipe_expr
-    pipe_expr: ternary ("|>" ternary)*
+    pipe_expr: ternary (PIPE_FORWARD ternary)*
     ?ternary: or_expr ("if" or_expr "else" or_expr)?    -> conditional
     ?or_expr: and_expr ("or" and_expr)*
     ?and_expr: not_expr ("and" not_expr)*
     ?not_expr: "not" not_expr                            -> logical_not
              | comparison
-    ?comparison: arith (comp_op arith)*
+    ?comparison: bitor_expr (comp_op bitor_expr)*
     !comp_op: "<" | "<=" | ">" | ">=" | "==" | "!=" | "is" | "is" "not" | "in" | "not" "in"
+
+    ?bitor_expr:  bitxor_expr (_PIPE_OP bitxor_expr)*
+    ?bitxor_expr: bitand_expr (_CARET    bitand_expr)*
+    ?bitand_expr: shift_expr  (_AMP      shift_expr)*
+    ?shift_expr:  arith       (shift_op  arith)*
+    !shift_op: "<<" | ">>"
+
     ?arith: term (add_op term)*
     !add_op: "+" | "-"
     ?term: factor (mul_op factor)*
@@ -93,6 +121,7 @@ VIPER_GRAMMAR = r"""
            | "." NAME                                    -> attr_trailer
     slice_expr: expr ":" expr? (":" expr?)?              -> slice
               | expr                                     -> index_expr
+
     ?atom: NUMBER                                        -> number
          | STRING                                        -> string
          | FSTRING                                       -> fstring
@@ -101,17 +130,27 @@ VIPER_GRAMMAR = r"""
          | "False"                                       -> const_false
          | "None"                                        -> const_none
          | "fn" "(" param_list? ")" "->" expr            -> lambda_expr
+         | "(" NAME WALRUS expr ")"                      -> walrus_group
          | "(" expr ")"                                  -> group
          | "(" expr ("," expr)+ ","? ")"                 -> tuple_literal
+         | "(" expr comp_clauses ")"                     -> generator_exp
          | "(" ")"                                       -> empty_tuple
-         | "[" list_items? "]"                           -> list_literal
-         | "{" dict_items? "}"                           -> dict_literal
-         | "{" set_items "}"                             -> set_literal
-         | "[" expr "for" pattern "in" expr ("if" expr)? "]" -> list_comp
+         | "[" _list_body? "]"                           -> list_atom
+         | "{" _brace_body? "}"                          -> brace_atom
 
-    list_items: expr ("," expr)* ","?
-    set_items: expr ("," expr)+ ","?
-    dict_items: key_value ("," key_value)* ","?
+    // factored bodies so dict/set/comp disambiguate on a single lookahead
+    _list_body: expr "for" target "in" or_expr comp_if*  -> list_comp_body
+              | expr ("," expr)* ","?                    -> list_items_body
+    _brace_body: key_value "for" target "in" or_expr comp_if*  -> dict_comp_body
+               | key_value ("," key_value)* ","?                -> dict_items_body
+               | expr "for" target "in" or_expr comp_if*        -> set_comp_body
+               | expr ("," expr)+ ","?                          -> set_items_body
+               | expr                                           -> set_singleton_body
+
+    comp_clauses: comp_for+
+    comp_for: "for" target "in" or_expr comp_if*
+    comp_if: "if" or_expr
+
     key_value: expr ":" expr
     arg_list: argument ("," argument)* ","?
     argument: NAME "=" expr                              -> kwarg
@@ -137,6 +176,13 @@ VIPER_GRAMMAR = r"""
 
     type: NAME ("[" type ("," type)* "]")?
 
+    // --- terminals — priorities matter -------------------------------------
+    PIPE_FORWARD.2: "|>"
+    WALRUS.2:       ":="
+    _PIPE_OP:       "|"
+    _CARET:         "^"
+    _AMP:           "&"
+
     FSTRING: /f"[^"\\]*(?:\\.[^"\\]*)*"/
            | /f'[^'\\]*(?:\\.[^'\\]*)*'/
     %import common.CNAME -> NAME
@@ -149,6 +195,8 @@ VIPER_GRAMMAR = r"""
 
     _NL: /(\r?\n[\t ]*)+/
 """
+
+
 class ViperIndenter(Indenter):
     NL_type = "_NL"
     OPEN_PAREN_types = ["LPAR", "LSQB", "LBRACE"]
@@ -156,6 +204,8 @@ class ViperIndenter(Indenter):
     INDENT_type = "INDENT"
     DEDENT_type = "DEDENT"
     tab_len = 8
+
+
 class ViperParser:
     def __init__(self):
         self.parser = Lark(
@@ -171,4 +221,7 @@ class ViperParser:
         if not source.endswith("\n"):
             source += "\n"
         return self.parser.parse(source)
+
+
 parser = ViperParser()
+

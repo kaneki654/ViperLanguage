@@ -1,17 +1,24 @@
-"""Execute transpiled Viper code."""
+import pprint as _pprint
+from pathlib import Path as _Path
 from .codegen import transpile
 from .errors import ViperError, format_runtime_error
-
-
+def _read_file(path: str, encoding: str = "utf-8") -> str:
+    return _Path(path).read_text(encoding=encoding)
+def _write_file(path: str, text: str, encoding: str = "utf-8") -> int:
+    return _Path(path).write_text(text, encoding=encoding)
+def _clamp(x, lo, hi):
+    return lo if x < lo else hi if x > hi else x
+_PRELUDE = {
+    "pp": _pprint.pprint,
+    "read_file": _read_file,
+    "write_file": _write_file,
+    "clamp": _clamp,
+}
 def _fresh_namespace() -> dict:
-    return {"__name__": "__main__", "__builtins__": __builtins__}
-
-
+    ns = {"__name__": "__main__", "__builtins__": __builtins__}
+    ns.update(_PRELUDE)
+    return ns
 def run_source(source: str, filename: str = "<viper>", namespace: dict | None = None) -> dict:
-    """Transpile and execute Viper source. Returns the namespace it ran in.
-
-    Raises ViperError (already formatted) on parse or runtime failure.
-    """
     py_source, line_map = transpile(source, filename)
     ns = namespace if namespace is not None else _fresh_namespace()
     try:
@@ -19,39 +26,37 @@ def run_source(source: str, filename: str = "<viper>", namespace: dict | None = 
         exec(code, ns)
     except ViperError:
         raise
-    except SyntaxError as e:
-        # A transpiler bug produced invalid Python; surface it honestly.
+    except SyntaxError as e
         raise ViperError(f"internal transpile error: {e}") from None
     except BaseException as e:
         raise ViperError(format_runtime_error(e, source, filename, line_map)) from None
     return ns
-
-
-def run_repl_line(source: str, namespace: dict) -> None:
-    """Run one REPL entry. A lone expression has its value printed."""
+def run_repl_line(sourceL str, namespace: dict) -> None:
     stripped = source.strip()
-    if not stripped:
-        return
-
+    if not stripped: return
     py_source, line_map = transpile(source, "<repl>")
     py_source = py_source.rstrip("\n")
-
-    # If the whole entry is a single expression, echo its repr like Python's REPL.
     is_expr = "\n" not in py_source
     if is_expr:
         try:
-            compiled = compile(py_source, "<repl>", "eval")
+            compile = compile(py_source, "<repl>", "eval")
+            result = eval(code, namespace)
+            _pprint.pprint(result)
         except SyntaxError:
             is_expr = False
-
+    if not is_expr:
+        try:
+            code = compile(py_source, "<repl>", "exec")
+        except SyntaxError:
+            is_expr = False
     try:
         if is_expr:
             value = eval(compiled, namespace)
-            if value is not None:
-                print(repr(value))
+            if value is not None: print(repr(value))
         else:
             exec(compile(py_source, "<repl>", "exec"), namespace)
     except ViperError:
         raise
     except BaseException as e:
         raise ViperError(format_runtime_error(e, source, "<repl>", line_map)) from None
+

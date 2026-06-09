@@ -3,9 +3,10 @@ from ._ansi import header, dim
 
 TOPICS = {
     "let": (
-        "Bind a value to a name. Use 'let' the first time you introduce a name; "
-        "you can add an optional type. Reassign later with plain '='.",
-        'let x = 10\nlet name: str = "Viper"\nx = x + 1',
+        "Bind a value to a name. Use 'let' the first time; reassign with '='. "
+        "Supports tuple and starred unpacking: 'let (a, b) = pair', "
+        "'let a, *rest = xs'.",
+        'let x = 10\nlet name: str = "Viper"\nlet a, b = (1, 2)',
     ),
     "fn": (
         "Define a function with 'fn'. Parameters may have types and defaults; "
@@ -14,82 +15,124 @@ TOPICS = {
         "fn add(a: int, b: int = 1) -> int:\n    return a + b",
     ),
     "if": (
-        "Conditional branching. 'elif' and 'else' are optional. There is also "
-        "an inline form:  value if cond else other.",
-        'if score > 90:\n    print("A")\nelif score > 80:\n    print("B")\nelse:\n    print("C")',
+        "Branching. 'elif' and 'else' are optional. Inline form: "
+        "value if cond else other. The walrus ':=' is allowed in conditions.",
+        'if (n := len(xs)) > 0:\n    print(n)',
     ),
     "for": (
-        "Iterate over any iterable (lists, ranges, strings, dict keys...).",
-        "for n in [1, 2, 3]:\n    print(n)",
+        "Iterate over any iterable. Supports tuple/starred targets and "
+        "'for ... else'.",
+        "for k, v in items:\n    print(k, v)",
     ),
     "while": (
-        "Loop while a condition holds. 'break' and 'continue' work as expected.",
-        "let i = 0\nwhile i < 3:\n    print(i)\n    i = i + 1",
+        "Loop while a condition holds. Supports 'else' and walrus.",
+        "while (line := input()) != \"q\":\n    print(line)",
     ),
     "match": (
-        "Pattern matching. Cases can be literals, capture names, '_' wildcard, "
-        "or sequence patterns, with an optional 'if' guard.",
-        'match cmd:\n    case "go":\n        print("moving")\n    case _:\n        print("unknown")',
+        "Pattern matching with literals, captures, '_' wildcard, sequences, "
+        "tuples, class patterns, '|' alternation, 'as' bindings, and 'if' guards.",
+        'match cmd:\n    case ["go", x, y] if x > 0:\n        print("moving")',
     ),
     "pipe": (
-        "The pipe operator '|>' feeds a value into a function as its argument. "
-        "'x |> f |> g' is the same as 'g(f(x))' but reads left-to-right.",
-        "let nums = [3, 1, 2]\nprint(nums |> sorted)\nprint(16 |> float |> int)",
+        "'|>' feeds a value into a function: 'x |> f' is 'f(x)'. "
+        "Use '_' as a placeholder to pipe into a specific argument:\n"
+        "  3.14159 |> round(_, 2)   means   round(3.14159, 2)",
+        "let nums = [3, 1, 2]\nprint(nums |> sorted)\n"
+        "print(3.14159 |> round(_, 2))",
     ),
     "lambda": (
-        "Anonymous functions use the same 'fn' keyword with an arrow expression.",
-        "let square = fn(x) -> x * x\nprint(square(5))",
+        "Anonymous functions: 'fn(x) -> expr'.",
+        "let square = fn(x) -> x * x",
     ),
     "dict": (
-        "Dictionaries map keys to values; index with [key].",
-        'let user = {"name": "Ada", "age": 36}\nprint(user["name"])',
+        "Dictionaries map keys to values. '{}' is an empty dict; comprehensions "
+        "supported: '{k: v for k, v in items}'.",
+        'let scores = {n: n*n for n in range(5)}',
     ),
     "list": (
-        "Ordered collections. Index, iterate, and pipe into builtins.",
-        "let xs = [5, 2, 8]\nprint(xs[0])\nprint(xs |> len)",
+        "Ordered collections. List comps, slices, and pipes all work.",
+        "let evens = [x for x in range(10) if x % 2 == 0]",
     ),
     "import": (
-        "Viper connects to Python's whole module ecosystem. Import any Python "
-        "module and use it directly.",
-        "import math\nprint(math.sqrt(16))\nfrom math import pi",
+        "Viper speaks Python's whole ecosystem. Import any Python module.",
+        "import math\nfrom os import path",
     ),
     "spawn": (
-        "Run a block concurrently in a background thread (fire-and-forget).",
-        'spawn:\n    print("running in the background")',
+        "Run a block in a background daemon thread.",
+        'spawn:\n    print("hi from a thread")',
     ),
     "types": (
-        "Type annotations are optional and pass straight through to Python. "
-        "They document intent and work with Python tooling; Viper does not yet "
-        "type-check them.",
-        "let count: int = 0\nfn greet(name: str) -> str:\n    return \"hi \" + name",
+        "Type annotations pass through to Python; not yet checked by Viper.",
+        "let n: int = 0",
+    ),
+    "with": (
+        "Context managers — auto-cleanup on scope exit.",
+        'with open("data.txt") as f:\n    print(f.read())',
+    ),
+    "assert": (
+        "Cheap runtime checks. Optional message after a comma.",
+        'assert x > 0, "x must be positive"',
+    ),
+    "comprehension": (
+        "List / set / dict / generator comprehensions, all uniform.",
+        "let xs = [x*x for x in range(10) if x % 2 == 0]\n"
+        "let s  = {c for c in \"hello\"}\n"
+        "let d  = {n: n*n for n in range(5)}\n"
+        "let g  = (x for x in range(10))",
+    ),
+    "walrus": (
+        "':=' binds and returns a value. Allowed in if/elif/while and in "
+        "parenthesized atoms.",
+        'if (n := len(line)) > 80:\n    print("too long:", n)',
+    ),
+    "bitwise": (
+        "Bitwise '|' '^' '&', shifts '<<' '>>'. Precedence matches Python. "
+        "(Note '|>' is the pipe operator, not bitor.)",
+        "print(0b1010 | 0b0101)\nprint(1 << 4)",
+    ),
+    "unpack": (
+        "Tuple/list unpacking with optional starred catch-all.",
+        "let (a, b, c) = (1, 2, 3)\nlet head, *tail = [1, 2, 3, 4]",
+    ),
+    "prelude": (
+        "Built into every Viper run: pp (pretty-print), read_file(path), "
+        "write_file(path, text), clamp(x, lo, hi).",
+        'write_file("hi.txt", "hello")\nprint(read_file("hi.txt"))',
+    ),
+    "global": (
+        "Declare module-level bindings inside a function.",
+        "let counter = 0\nfn bump():\n    global counter\n    counter += 1",
+    ),
+    "nonlocal": (
+        "Rebind an enclosing function's local from a nested function.",
+        "fn make_counter():\n    let n = 0\n    fn inc():\n        nonlocal n\n        n += 1\n        return n\n    return inc",
+    ),
+    "raise": (
+        "Raise an exception, optionally chaining a cause with 'from'.",
+        'try:\n    int("nope")\nexcept ValueError as e:\n    raise RuntimeError("bad input") from e',
     ),
 }
 
 ALIASES = {
     "|>": "pipe",
-    "def": "fn",
-    "func": "fn",
-    "function": "fn",
-    "dictionary": "dict",
-    "array": "list",
-    "elif": "if",
-    "else": "if",
+    ":=": "walrus",
+    "def": "fn", "func": "fn", "function": "fn",
+    "dictionary": "dict", "array": "list",
+    "elif": "if", "else": "if",
     "case": "match",
     "type": "types",
+    "comp": "comprehension", "genexp": "comprehension",
+    "stdlib": "prelude",
 }
 
 
 def show_topic(name: str) -> int:
     key = ALIASES.get(name, name)
     if key not in TOPICS:
-        print(f"unknown topic: {name!r}\n")
-        list_topics()
-        return 1
+        print(f"unknown topic: {name!r}\n"); list_topics(); return 1
     explain, example = TOPICS[key]
-    print(header(f"viper · {key}"))
-    print()
-    print(explain)
-    print()
+    print(header(f"viper · {key}")); print()
+    print(explain); print()
     print(dim("example:"))
     for line in example.splitlines():
         print("    " + line)
@@ -97,11 +140,11 @@ def show_topic(name: str) -> int:
 
 
 def list_topics() -> int:
-    print(header("available topics"))
-    print()
+    print(header("available topics")); print()
     names = sorted(TOPICS)
     for i in range(0, len(names), 4):
-        print("  " + "  ".join(f"{n:<10}" for n in names[i:i + 4]).rstrip())
+        print("  " + "  ".join(f"{n:<14}" for n in names[i:i + 4]).rstrip())
     print()
-    print(dim("use:  viper help <topic>   (e.g. viper help match)"))
+    print(dim("use:  viper help <topic>   (e.g. viper help walrus)"))
     return 0
+
