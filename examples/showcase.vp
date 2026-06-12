@@ -1,19 +1,20 @@
 import os, tempfile
 let (a, b) = (1, 2)
 let head, *tail = [10, 20, 30, 40]
-let x = y = 7
+let x = 7
+let y = 7
 print("a, b =", a, b)
 print("head, tail =", head, tail)
 print("x, y", x, y)
 let evens = [n for n in range(10) if n % 2 == 0]
 let vowels = {c for c in "hello world" if c in "aeiou"}
 let squares = {n: n * n for n in range(4)}
-let total = sum(n for n in range(11))
+let total = sum((n for n in range(11)))
 print("evens =", evens)
 print("vowels =", sorted(vowels))
 print("squares =", squares)
 print("sum 0..10 =", total)
-print("bits:", 0b1010 | 0b0101, 1 << 4, 0xff & 0x0f)
+print("bits:", 0x0A | 0x05, 1 << 4, 0xff & 0x0f)
 if (n := len(evens)) > 0:
     print(f"got {n} evens")
 print([3, 1, 2] |> sorted)
@@ -21,7 +22,7 @@ print(3.14159 |> round(_, 2))
 pp({"name": "viper", "version": "alpha-0.0.3", "items": [1, 2, 3]})
 print("clamp(10, 0, 5) =", clamp(10, 0, 5))
 let tmpdir = tempfile.mkdtemp()
-let path = os.path.join(tmpdirm "hello.txt")
+let path = os.path.join(tmpdir, "hello.txt")
 write_file(path, "round-trip!")
 print(read_file(path))
 with open(path) as f:
@@ -34,5 +35,5 @@ try:
         raise RuntimeError("outer") from e
 except RuntimeError as r:
     print("caught:", r)
-print("shocase ok")
+print("showcase ok")
 

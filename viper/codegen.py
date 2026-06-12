@@ -10,9 +10,10 @@ from .parser import parser
 from .keywords import BUILTINS
 
 # ---- footgun guard config ---------------------------------------------------
-_BUILTIN_NAMES = set(BUILTINS)
-# Stdlib prelude names live on the namespace, not builtins, so user code may
-# shadow them freely — keep them OUT of the guard list intentionally.
+# Viper's stdlib prelude helpers live in BUILTINS for editor completion, but are
+# plain namespace names users may freely shadow — keep them out of the guard set.
+_PRELUDE_NAMES = {"pp", "read_file", "write_file", "clamp"}
+_BUILTIN_NAMES = set(BUILTINS) - _PRELUDE_NAMES
 
 
 def _rule(node) -> str:
@@ -77,16 +78,13 @@ class _Codegen:
 
     # -- let / assign / aug -----------------------------------------------
     def _stmt_let_stmt(self, node, indent):
-        # children: target_list, [type], expr
         tl = node.children[0]
-        # type optional in the middle
         type_node = None
         if len(node.children) == 3 and isinstance(node.children[1], Tree) \
                 and _rule(node.children[1]) == "type":
             type_node = node.children[1]
         expr = node.children[-1]
 
-        # collect bound names for footgun guards & repl completion
         bound = self._collect_target_names(tl)
         for name in bound:
             if name in _BUILTIN_NAMES:
@@ -98,7 +96,6 @@ class _Codegen:
 
         target = self.gen_target_list(tl)
         if type_node is not None:
-            # type annotation only valid on a single bare-name target
             if not (len(tl.children) == 1 and self._is_bare_name(tl.children[0])):
                 raise ViperError(
                     "type annotation in 'let' is only allowed on a single name.\n"
@@ -110,24 +107,27 @@ class _Codegen:
             self.emit(f"{target} = {self.gen_expr(expr)}", indent, node.meta.line)
 
     def _stmt_assign_stmt(self, node, indent):
-        # N target_lists + final expr — emit a = b = ... = rhs
+        # children: target_list* "=" expr  (zero or more intermediate target_lists)
         targets = [self.gen_target_list(c) for c in node.children[:-1]]
         rhs = self.gen_expr(node.children[-1])
         self.emit(" = ".join(targets) + f" = {rhs}", indent, node.meta.line)
 
     def _stmt_aug_assign_stmt(self, node, indent):
-        lhs = self.gen_expr(node.children[0])  # postfix
+        lhs = self.gen_expr(node.children[0])
         op = node.children[1].children[0].value
         rhs = self.gen_expr(node.children[2])
         self.emit(f"{lhs} {op} {rhs}", indent, node.meta.line)
 
     def _stmt_expr_stmt(self, node, indent):
         expr = node.children[0]
-        self._guard_none_compare(expr, node.meta.line)
         self.emit(self.gen_expr(expr), indent, node.meta.line)
 
     # -- targets -----------------------------------------------------------
     def _is_bare_name(self, t):
+        # ?target/?postfix inline to a bare `name` atom when there are no trailers,
+        # so a single name can appear either directly or wrapped in a postfix.
+        if isinstance(t, Tree) and _rule(t) == "name":
+            return True
         if isinstance(t, Tree) and _rule(t) == "postfix" and len(t.children) == 1:
             inner = t.children[0]
             return isinstance(inner, Tree) and _rule(inner) == "name"
@@ -151,13 +151,25 @@ class _Codegen:
         parts = [self.gen_target(c) for c in node.children]
         if len(parts) == 1:
             return parts[0]
-        # python tuple-target form
         return ", ".join(parts)
 
     def gen_target(self, node) -> str:
-        if isinstance(node, Tree) and _rule(node) == "star_target":
+        if isinstance(node, Token):
+            return node.value
+        r = _rule(node)
+        if r == "star_target":
             return "*" + self.gen_target(node.children[0])
-        # otherwise postfix; reuse expression generator
+        # Strip parentheses from tuple targets: (a, b) = x  ->  a, b = x
+        if r == "group":
+            inner = node.children[0]
+            # If inner is a target_list-like thing (tuple_literal), unpack it
+            ir = _rule(inner)
+            if ir == "tuple_literal":
+                return ", ".join(self.gen_target(c) for c in inner.children)
+            return self.gen_target(inner)
+        if r == "tuple_literal":
+            return ", ".join(self.gen_target(c) for c in node.children)
+        # postfix — reuse expression generator
         return self.gen_expr(node)
 
     # -- simple stmts ------------------------------------------------------
@@ -375,26 +387,23 @@ class _Codegen:
 
     def _check_mutable_default(self, name, default):
         peeled = _peel(default)
-        if isinstance(peeled, Tree) and _rule(peeled) in (
-                "list_atom", "brace_atom", "tuple_literal"):
-            # only flag concrete literals (not dict/set comprehensions)
+        if isinstance(peeled, Tree) and _rule(peeled) in ("list_atom", "brace_atom"):
             inner = peeled.children[0] if peeled.children else None
-            if isinstance(peeled, Tree) and _rule(peeled) in ("list_atom", "brace_atom"):
-                if inner is not None and isinstance(inner, Tree) and _rule(inner) in (
-                        "list_items_body", "dict_items_body",
-                        "set_items_body", "set_singleton_body"):
-                    kind = ("list" if _rule(inner) == "list_items_body"
-                            else "dict" if _rule(inner) == "dict_items_body"
-                            else "set")
-                    raise ViperError(
-                        f"mutable default argument '{name}=<{kind}>' is a footgun in Viper.\n"
-                        f"hint: use '{name}=None' and build the {kind} inside the function."
-                    )
-                if inner is None and _rule(peeled) == "list_atom":
-                    raise ViperError(
-                        f"mutable default argument '{name}=[]' is a footgun in Viper.\n"
-                        f"hint: use '{name}=None' and build the list inside the function."
-                    )
+            if inner is not None and isinstance(inner, Tree) and _rule(inner) in (
+                    "list_items_body", "dict_items_body",
+                    "set_items_body", "set_singleton_body"):
+                kind = ("list" if _rule(inner) == "list_items_body"
+                        else "dict" if _rule(inner) == "dict_items_body"
+                        else "set")
+                raise ViperError(
+                    f"mutable default argument '{name}=<{kind}>' is a footgun in Viper.\n"
+                    f"hint: use '{name}=None' and build the {kind} inside the function."
+                )
+            if inner is None and _rule(peeled) == "list_atom":
+                raise ViperError(
+                    f"mutable default argument '{name}=[]' is a footgun in Viper.\n"
+                    f"hint: use '{name}=None' and build the list inside the function."
+                )
 
     def gen_type(self, node: Tree) -> str:
         base = node.children[0].value
@@ -449,7 +458,6 @@ class _Codegen:
     # walrus
     def _expr_walrus(self, node):
         name = node.children[0].value
-        # children[1] is the WALRUS terminal; expr is children[2]
         rhs = self.gen_expr(node.children[2])
         return f"({name} := {rhs})"
 
@@ -458,7 +466,6 @@ class _Codegen:
 
     # pipe + placeholder
     def _expr_pipe_expr(self, node):
-        # children: stage (PIPE_FORWARD stage)*
         stages = [c for c in node.children if isinstance(c, Tree)]
         if len(stages) == 1:
             return self.gen_expr(stages[0])
@@ -468,9 +475,7 @@ class _Codegen:
         return result
 
     def _pipe_apply(self, stage, piped: str) -> str:
-        """If stage is `f(..., _, ...)`, substitute piped for every `_`.
-        Otherwise emit `stage(piped)`."""
-        # Find the call_trailer at the end of a postfix containing a bare _
+        """If stage is f(..., _, ...), substitute piped for _. Otherwise f(piped)."""
         peeled = _peel(stage)
         if isinstance(peeled, Tree) and _rule(peeled) == "postfix" \
                 and len(peeled.children) >= 2 \
@@ -479,9 +484,8 @@ class _Codegen:
             if call.children:
                 arg_list = call.children[0]
                 if self._has_placeholder(arg_list):
-                    head = self.gen_expr(Tree(
-                        "postfix", peeled.children[:-1], peeled.meta
-                    )) if len(peeled.children) > 2 else self.gen_expr(peeled.children[0])
+                    # Always build head from all children except the last call_trailer
+                    head = self.gen_expr(Tree("postfix", peeled.children[:-1], peeled.meta))
                     args = self._render_args_with_placeholder(arg_list, piped)
                     return f"{head}({args})"
         return f"({self.gen_expr(stage)})({piped})"
@@ -489,14 +493,21 @@ class _Codegen:
     def _has_placeholder(self, arg_list: Tree) -> bool:
         for arg in arg_list.children:
             if _rule(arg) == "posarg":
-                e = arg.children[0]
-                peeled = _peel(e)
-                if isinstance(peeled, Tree) and _rule(peeled) == "postfix" \
-                        and len(peeled.children) == 1:
-                    atom = peeled.children[0]
-                    if isinstance(atom, Tree) and _rule(atom) == "name" \
-                            and atom.children[0].value == "_":
-                        return True
+                if self._is_underscore(arg.children[0]):
+                    return True
+        return False
+
+    def _is_underscore(self, node) -> bool:
+        peeled = _peel(node)
+        # bare name node (after ? transparent rules)
+        if isinstance(peeled, Tree) and _rule(peeled) == "name":
+            return peeled.children[0].value == "_"
+        # postfix wrapping a name node
+        if isinstance(peeled, Tree) and _rule(peeled) == "postfix" \
+                and len(peeled.children) == 1:
+            atom = peeled.children[0]
+            if isinstance(atom, Tree) and _rule(atom) == "name":
+                return atom.children[0].value == "_"
         return False
 
     def _render_args_with_placeholder(self, arg_list: Tree, piped: str) -> str:
@@ -506,13 +517,7 @@ class _Codegen:
             if r == "posarg":
                 e = arg.children[0]
                 peeled = _peel(e)
-                is_underscore = (
-                    isinstance(peeled, Tree) and _rule(peeled) == "postfix"
-                    and len(peeled.children) == 1
-                    and isinstance(peeled.children[0], Tree)
-                    and _rule(peeled.children[0]) == "name"
-                    and peeled.children[0].children[0].value == "_"
-                )
+                is_underscore = self._is_underscore(e)
                 out.append(piped if is_underscore else self.gen_expr(e))
             elif r == "kwarg":
                 out.append(f"{arg.children[0].value}={self.gen_expr(arg.children[1])}")
@@ -533,20 +538,20 @@ class _Codegen:
         return f"(not {self.gen_expr(node.children[0])})"
 
     def _expr_comparison(self, node):
-        # guard `== None` / `!= None`
         out = [self.gen_expr(node.children[0])]
         i = 1
         while i < len(node.children):
             op_node = node.children[i]
             op = " ".join(t.value for t in op_node.children)
             rhs = node.children[i + 1]
+            lhs_node = node.children[i - 1] if i > 0 else None
             if op in ("==", "!=") and self._is_none_literal(rhs):
                 arrow = "is" if op == "==" else "is not"
                 raise ViperError(
                     f"compare against None with '{arrow}', not '{op}'.\n"
                     f"hint: write 'x {arrow} None'."
                 )
-            if op in ("==", "!=") and self._is_none_literal(node.children[i - 1]):
+            if lhs_node is not None and op in ("==", "!=") and self._is_none_literal(lhs_node):
                 arrow = "is" if op == "==" else "is not"
                 raise ViperError(
                     f"compare against None with '{arrow}', not '{op}'.\n"
@@ -558,12 +563,16 @@ class _Codegen:
 
     def _is_none_literal(self, n):
         peeled = _peel(n)
+        # Direct const_none (after transparent ? rules collapsed the tree)
+        if isinstance(peeled, Tree) and _rule(peeled) == "const_none":
+            return True
+        # Wrapped in a single-child postfix
         return isinstance(peeled, Tree) and _rule(peeled) == "postfix" \
             and len(peeled.children) == 1 \
             and isinstance(peeled.children[0], Tree) \
             and _rule(peeled.children[0]) == "const_none"
 
-    # bitwise + shift cascade -- all share _binop
+    # bitwise + shift cascade
     def _binop(self, node, sep):
         if len(node.children) == 1:
             return self.gen_expr(node.children[0])
@@ -612,22 +621,25 @@ class _Codegen:
                 args = self.gen_arglist(tr.children[0]) if tr.children else ""
                 result = f"{result}({args})"
             elif r == "index_trailer":
-                result = f"{result}[{self._gen_slice(tr.children[0])}]"
+                result = f"{result}[{self.gen_expr(tr.children[0])}]"
+            elif r == "slice_trailer":
+                result = f"{result}[{self._gen_slice_part(tr.children[0])}]"
             elif r == "attr_trailer":
                 result = f"{result}.{tr.children[0].value}"
             else:
                 raise ViperError(f"internal: no codegen for trailer {r!r}")
         return result
 
-    def _gen_slice(self, node):
-        if _rule(node) == "index_expr":
-            return self.gen_expr(node.children[0])
-        # slice — children may be Tree or missing
+    def _gen_slice_part(self, node: Tree) -> str:
+        # node is slice_part: expr? COLON expr? (COLON expr?)?
+        # children are a mix of Tree (expr) and Token (COLON)
         parts = []
         for c in node.children:
-            parts.append(self.gen_expr(c) if c is not None else "")
-        while len(parts) < 2: parts.append("")
-        return ":".join(parts)
+            if isinstance(c, Token):        # COLON terminal
+                parts.append(":")
+            elif isinstance(c, Tree):
+                parts.append(self.gen_expr(c))
+        return "".join(parts)
 
     def gen_arglist(self, node) -> str:
         out = []
@@ -667,7 +679,6 @@ class _Codegen:
         inner = ", ".join(self.gen_expr(c) for c in n.children)
         return f"({inner})" if len(n.children) > 1 else f"({inner},)"
 
-    # list atom (literal or comp)
     def _expr_list_atom(self, n):
         if not n.children: return "[]"
         body = n.children[0]
@@ -678,7 +689,6 @@ class _Codegen:
             return "[" + self._render_comp_inner(body) + "]"
         raise ViperError(f"internal: list body {r!r}")
 
-    # brace atom (dict literal, set literal, dict-comp, set-comp, singleton)
     def _expr_brace_atom(self, n):
         if not n.children: return "{}"
         body = n.children[0]
@@ -702,15 +712,13 @@ class _Codegen:
         raise ViperError(f"internal: brace body {r!r}")
 
     def _render_comp_inner(self, body) -> str:
-        # body children: expr, target, iterable, *comp_if
         head = self.gen_expr(body.children[0])
         tail = self._render_comp_tail(body, skip_first=True)
         return head + " " + tail
 
     def _render_comp_tail(self, body, skip_first: bool) -> str:
-        # children: [head], target, iterable, *comp_if
         idx = 1 if skip_first else 0
-        target = self.gen_target(body.children[idx])
+        target = self.gen_target_list(body.children[idx])
         iterable = self.gen_expr(body.children[idx + 1])
         ifs = []
         for c in body.children[idx + 2:]:
@@ -718,13 +726,12 @@ class _Codegen:
                 ifs.append("if " + self.gen_expr(c.children[0]))
         return f"for {target} in {iterable}" + (" " + " ".join(ifs) if ifs else "")
 
-    # generator expression atom
     def _expr_generator_exp(self, n):
         head = self.gen_expr(n.children[0])
-        clauses = n.children[1]  # comp_clauses
+        clauses = n.children[1]
         parts = [head]
         for cf in clauses.children:
-            target = self.gen_target(cf.children[0])
+            target = self.gen_target_list(cf.children[0])
             iterable = self.gen_expr(cf.children[1])
             ifs = []
             for c in cf.children[2:]:
@@ -734,10 +741,7 @@ class _Codegen:
             parts.extend(ifs)
         return "(" + " ".join(parts) + ")"
 
-    # ---- footgun helpers used by expr/stmt gen --------------------------
     def _guard_none_compare(self, node, line):
-        # _expr_comparison already raises; nothing extra needed here, kept for
-        # future hooks (e.g. unused-variable warnings).
         return
 
 
@@ -750,4 +754,3 @@ def transpile(source: str, filename: str = "<viper>") -> tuple[str, dict]:
     for stmt in [c for c in tree.children if isinstance(c, Tree)]:
         cg.gen_stmt(stmt, 0)
     return "\n".join(cg.lines) + "\n", cg.line_map
-

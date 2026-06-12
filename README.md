@@ -5,15 +5,45 @@ A clean, Python-connected scripting language. Write `.vp`, run Python.
 ```
 let name = "world"
 print(f"Hello, {name}!")
+print(3.14159 |> round(_, 2))
 ```
 
-Viper transpiles to Python, so every Python module works out of the box — `import math`, `import os`, anything.
+Viper transpiles to Python, so every Python module works out of the box — `import math`, `import os`, anything. It aims to be a little friendlier than Python: clear error messages, a few footgun guards, a pipe operator with placeholders, and a small built-in stdlib.
 
 ---
 
 ## Changelog
 
-### ALPHA-0.0.2-1 *(current)*
+### ALPHA-0.0.3 *(current)*
+
+Python parity, Viper-only superpowers, and a real test suite.
+
+**Python parity — these now parse and run:**
+
+- **Tuple & starred unpacking** — `let (a, b) = pair`, `let head, *tail = xs`
+- **Chained assignment** — `a = b = 1`
+- **`with` statement** — `with open("f") as f:`
+- **`assert`** — `assert x > 0, "must be positive"`
+- **`global` / `nonlocal`**
+- **`raise … from`** — exception chaining
+- **Dict / set / generator comprehensions** — `{k: v for …}`, `{x for …}`, `(x for …)`
+- **Bitwise & shift operators** — `|`, `^`, `&`, `<<`, `>>` (full Python precedence)
+- **Walrus `:=`** — in `if` / `elif` / `while` conditions and parenthesized expressions
+- **Number literals** — hex `0xff`, octal `0o17`, binary `0b1010`, underscores `1_000_000`, scientific `1e9`
+- **Single-quoted strings** — `'hi'` and `f'{x}'` (double quotes still work too)
+
+**Viper superpowers:**
+
+- **Pipe placeholder `_`** — pipe into any argument: `3.14159 |> round(_, 2)` becomes `round(3.14159, 2)`
+- **Built-in stdlib prelude** (no import needed): `pp` (pretty-print), `read_file(path)`, `write_file(path, text)`, `clamp(x, lo, hi)`
+- **More footgun guards** — bare `except:`, `== None` / `!= None`, and `let` shadowing a builtin are all rejected with a helpful hint
+
+**Tooling:**
+
+- **Full pytest suite** — `pip install -e ".[test]"` then `pytest`
+- New help topics: `with`, `assert`, `comprehension`, `walrus`, `bitwise`, `unpack`, `prelude`, `global`, `nonlocal`, `raise`
+
+### ALPHA-0.0.2-1
 
 Added in this upgrade (on top of 0.0.2):
 
@@ -85,6 +115,13 @@ viper --lsp               # start the language server (for editors)
 viper --version
 ```
 
+Run the test suite:
+
+```sh
+pip install -e ".[test]"
+pytest
+```
+
 ---
 
 ## Language Reference
@@ -96,9 +133,13 @@ let x = 10
 let name: str = "Viper"
 x += 1
 x *= 2
+
+let (a, b) = (1, 2)          # tuple unpacking
+let head, *tail = [1, 2, 3]  # starred catch-all
+a = b = 0                    # chained assignment
 ```
 
-`let` introduces a name. Reassign later with plain `=` or augmented operators.
+`let` introduces a name. Reassign later with plain `=` or augmented operators. Number literals can be decimal, hex (`0xff`), octal (`0o17`), binary (`0b1010`), or use `_` separators (`1_000_000`). Strings use single or double quotes.
 
 ### Functions
 
@@ -169,14 +210,19 @@ import math
 
 print([3, 1, 2] |> sorted)
 print(math.sqrt(144) |> int)
+print(3.14159 |> round(_, 2))   # placeholder: round(3.14159, 2)
 ```
 
-`x |> f` means `f(x)`. Chains left to right.
+`x |> f` means `f(x)`, chaining left to right. Use `_` as a placeholder to pipe the value into a specific argument: `x |> f(_, 2)` becomes `f(x, 2)`.
 
 ### Comprehensions and slices
 
 ```
-let evens = [x for x in range(20) if x % 2 == 0]
+let evens = [x for x in range(20) if x % 2 == 0]   # list
+let vowels = {c for c in "hello" if c in "aeiou"}  # set
+let squares = {n: n * n for n in range(5)}         # dict
+let lazy = (x for x in range(10))                  # generator
+
 let first5 = evens[0:5]
 let every_other = evens[::2]
 ```
@@ -188,6 +234,56 @@ let point = (3.0, 4.0)
 let (px, py) = point
 
 let unique = {1, 2, 3, 2, 1}
+```
+
+### Walrus, with, and assert
+
+```
+if (n := len(evens)) > 0:
+    print(f"got {n} evens")
+
+with open("data.txt") as f:
+    print(f.read())
+
+assert n > 0, "expected at least one even"
+```
+
+### Bitwise operators
+
+```
+print(0b1010 | 0b0101)   # 15
+print(0xff & 0x0f)       # 15
+print(1 << 4)            # 16
+```
+
+### Built-in prelude
+
+Available in every Viper program — no import needed:
+
+```
+pp({"name": "viper", "items": [1, 2, 3]})   # pretty-print
+write_file("out.txt", "hello")
+print(read_file("out.txt"))
+print(clamp(10, 0, 5))                       # 5
+```
+
+### Footgun guards
+
+Viper turns a few of Python's silent traps into clear errors:
+
+```
+fn bad(x=[]):        # rejected: mutable default argument
+    return x
+
+if x == None:        # rejected: use 'is None'
+    pass
+
+try:
+    risky()
+except:              # rejected: name the exception, e.g. 'except Exception:'
+    pass
+
+let list = [1, 2]    # rejected: shadows the builtin 'list'
 ```
 
 ### Spawn

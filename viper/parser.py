@@ -41,7 +41,7 @@ VIPER_GRAMMAR = r"""
 
     // --- assignment / let / aug --------------------------------------------
     let_stmt: "let" target_list (":" type)? "=" expr
-    assign_stmt: target_list ("=" target_list)+ "=" expr
+    assign_stmt: target_list ("=" target_list)* "=" expr
     aug_assign_stmt: postfix aug_op expr
     !aug_op: "+=" | "-=" | "*=" | "/=" | "//=" | "%=" | "**="
     expr_stmt: expr
@@ -117,10 +117,13 @@ VIPER_GRAMMAR = r"""
 
     ?postfix: atom trailer*
     trailer: "(" arg_list? ")"                           -> call_trailer
-           | "[" slice_expr "]"                          -> index_trailer
+           | "[" expr "]"                                -> index_trailer
+           | "[" slice_part "]"                          -> slice_trailer
            | "." NAME                                    -> attr_trailer
-    slice_expr: expr ":" expr? (":" expr?)?              -> slice
-              | expr                                     -> index_expr
+
+    // slice_part: always has at least one COLON so it's distinct from index_trailer
+    slice_part: expr? COLON expr? (COLON expr?)?
+    COLON: ":"
 
     ?atom: NUMBER                                        -> number
          | STRING                                        -> string
@@ -135,20 +138,20 @@ VIPER_GRAMMAR = r"""
          | "(" expr ("," expr)+ ","? ")"                 -> tuple_literal
          | "(" expr comp_clauses ")"                     -> generator_exp
          | "(" ")"                                       -> empty_tuple
-         | "[" _list_body? "]"                           -> list_atom
-         | "{" _brace_body? "}"                          -> brace_atom
+         | "[" list_body? "]"                            -> list_atom
+         | "{" brace_body? "}"                           -> brace_atom
 
     // factored bodies so dict/set/comp disambiguate on a single lookahead
-    _list_body: expr "for" target "in" or_expr comp_if*  -> list_comp_body
-              | expr ("," expr)* ","?                    -> list_items_body
-    _brace_body: key_value "for" target "in" or_expr comp_if*  -> dict_comp_body
-               | key_value ("," key_value)* ","?                -> dict_items_body
-               | expr "for" target "in" or_expr comp_if*        -> set_comp_body
-               | expr ("," expr)+ ","?                          -> set_items_body
-               | expr                                           -> set_singleton_body
+    list_body: expr "for" target_list "in" or_expr comp_if*  -> list_comp_body
+             | expr ("," expr)* ","?                         -> list_items_body
+    brace_body: key_value "for" target_list "in" or_expr comp_if*  -> dict_comp_body
+              | key_value ("," key_value)* ","?                     -> dict_items_body
+              | expr "for" target_list "in" or_expr comp_if*        -> set_comp_body
+              | expr ("," expr)+ ","?                               -> set_items_body
+              | expr                                                -> set_singleton_body
 
     comp_clauses: comp_for+
-    comp_for: "for" target "in" or_expr comp_if*
+    comp_for: "for" target_list "in" or_expr comp_if*
     comp_if: "if" or_expr
 
     key_value: expr ":" expr
@@ -185,10 +188,14 @@ VIPER_GRAMMAR = r"""
 
     FSTRING: /f"[^"\\]*(?:\\.[^"\\]*)*"/
            | /f'[^'\\]*(?:\\.[^'\\]*)*'/
+    // Hex / octal / binary / float / int — hex&friends first so 0x0A wins.
+    // Underscores allowed as digit separators, like Python (1_000_000).
+    NUMBER: /0[xX][0-9a-fA-F](_?[0-9a-fA-F])*|0[oO][0-7](_?[0-7])*|0[bB][01](_?[01])*|((\d(_?\d)*\.(\d(_?\d)*)?|\.\d(_?\d)*|\d(_?\d)*)([eE][+-]?\d(_?\d)*)?[jJ]?)/
+    // Strings: double OR single quoted, like Python. f-strings handled above.
+    STRING: /"[^"\\]*(?:\\.[^"\\]*)*"/
+          | /'[^'\\]*(?:\\.[^'\\]*)*'/
     %import common.CNAME -> NAME
-    %import common.NUMBER
     %import common.WS_INLINE
-    %import common.ESCAPED_STRING -> STRING
     %ignore WS_INLINE
     %ignore /#[^\n]*/
     %declare INDENT DEDENT
@@ -224,4 +231,3 @@ class ViperParser:
 
 
 parser = ViperParser()
-

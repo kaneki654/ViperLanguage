@@ -83,6 +83,11 @@ def test_tuple_unpack_let():
     assert "a, b = " in out and "(1, 2)" in out
 
 
+def test_typed_let():
+    out = py('let name: str = "Ada"')
+    assert 'name: str = "Ada"' in out
+
+
 def test_starred_unpack():
     out = py("let head, *tail = [1, 2, 3]")
     assert "head, *tail = " in out
@@ -141,4 +146,10 @@ def test_pipe_placeholder():
 def test_pipe_default():
     out = py("let x = [3, 1] |> sorted")
     assert "(sorted)" in out and "[3, 1]" in out
+
+
+def test_number_literals():
+    out = py("let a = 0xff\nlet b = 0o17\nlet c = 0b1010\nlet d = 1_000_000\nlet e = 1e9")
+    assert "0xff" in out and "0o17" in out and "0b1010" in out \
+        and "1_000_000" in out and "1e9" in out
 
