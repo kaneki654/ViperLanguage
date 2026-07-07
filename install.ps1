@@ -1,13 +1,32 @@
 # install.ps1 — Viper installer for Windows
 # Usage:  powershell -ExecutionPolicy Bypass -File install.ps1
-# Installs the viper command, then adds the editor extension to VS Code and Cursor.
+# Does everything: installs the viper command, puts it on your PATH
+# automatically, and adds the editor extension to VS Code and Cursor.
 
 $ErrorActionPreference = "Stop"
 $repo = $PSScriptRoot
 
 Write-Host "=== Viper installer ===" -ForegroundColor Cyan
 
-# --- 1. find a suitable Python (3.10+) ---------------------------------
+# --- helpers -------------------------------------------------------------
+function Add-ToUserPath([string]$dir) {
+    if (-not $dir -or -not (Test-Path $dir)) { return }
+    # persist to the *user* PATH (no admin needed); .NET broadcasts the
+    # change so newly opened terminals pick it up without a reboot
+    $current = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (-not $current) { $current = "" }
+    $parts = $current -split ";" | Where-Object { $_ }
+    if ($parts -notcontains $dir) {
+        [Environment]::SetEnvironmentVariable("Path", (($parts + $dir) -join ";"), "User")
+        Write-Host "added to PATH: $dir" -ForegroundColor Green
+    }
+    # also patch THIS session so 'viper' works right away
+    if (($env:Path -split ";") -notcontains $dir) {
+        $env:Path = "$env:Path;$dir"
+    }
+}
+
+# --- 1. find a suitable Python (3.10+) -----------------------------------
 $python = $null
 foreach ($cand in @("python", "py")) {
     if (Get-Command $cand -ErrorAction SilentlyContinue) {
@@ -24,27 +43,23 @@ if (-not $python) {
 }
 Write-Host "using $python ($(& $python --version))"
 
-# --- 2. install viper: pipx if available, else pip --user ---------------
-$installed = $false
+# --- 2. install viper: pipx if available, else pip --user -----------------
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
     Write-Host "installing with pipx..."
     pipx install --force $repo
-    $installed = $true
+    pipx ensurepath *> $null
+    # pipx's shim directory, so this session works immediately too
+    try { $pipxBin = pipx environment --value PIPX_BIN_DIR 2>$null } catch { $pipxBin = $null }
+    if (-not $pipxBin) { $pipxBin = Join-Path $env:USERPROFILE ".local\bin" }
+    Add-ToUserPath $pipxBin
 } else {
     Write-Host "pipx not found - installing with pip --user..."
     & $python -m pip install --user $repo
-    $installed = $true
-    # warn if the user Scripts dir is not on PATH
     $scripts = & $python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
-    if ($env:Path -notlike "*$scripts*") {
-        Write-Host ""
-        Write-Host "note: '$scripts' is not on your PATH." -ForegroundColor Yellow
-        Write-Host "      Add it (Settings > System > About > Advanced system settings" -ForegroundColor Yellow
-        Write-Host "      > Environment Variables) so the 'viper' command works everywhere." -ForegroundColor Yellow
-    }
+    Add-ToUserPath $scripts
 }
 
-# --- 3. editor extension: VS Code + Cursor ------------------------------
+# --- 3. editor extension: VS Code + Cursor --------------------------------
 $ext = Join-Path $repo "editor\vscode\viper"
 $targets = @(
     (Join-Path $env:USERPROFILE ".vscode\extensions"),
@@ -60,11 +75,15 @@ foreach ($dir in $targets) {
 }
 Write-Host "(restart VS Code / Cursor to activate .vp highlighting)"
 
-# --- 4. verify -----------------------------------------------------------
+# --- 4. verify -------------------------------------------------------------
 Write-Host ""
 if (Get-Command viper -ErrorAction SilentlyContinue) {
     viper --version
-    Write-Host "Viper is ready. Try:  viper repl" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Viper is ready to use RIGHT NOW in this window. Try:  viper repl" -ForegroundColor Cyan
+    Write-Host "(other terminals that are already open need to be reopened once)"
 } else {
-    Write-Host "Installed, but 'viper' is not on PATH yet - open a NEW terminal and try 'viper --version'." -ForegroundColor Yellow
+    Write-Host "Installed, but 'viper' was not found - close this terminal, open a new one," -ForegroundColor Yellow
+    Write-Host "and run 'viper --version'. If it still fails, tell me the output of:" -ForegroundColor Yellow
+    Write-Host "  $python -m pip show viper-lang" -ForegroundColor Yellow
 }

@@ -127,7 +127,7 @@ pip install viper-lang
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Installs the `viper` command (pipx if available, else pip --user) **and** the VS Code / Cursor extension in one go.
+Fully automatic: installs the `viper` command (pipx if available, else pip --user), **adds it to your PATH** (persistently, no admin needed — works immediately in the same window), and installs the VS Code / Cursor extension.
 
 **From source (Linux / macOS):**
 

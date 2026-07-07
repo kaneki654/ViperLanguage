@@ -147,6 +147,14 @@ Added in this upgrade (on top of 0.0.2):
 pip install viper-lang
 ```
 
+**From source (Windows):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+Installs the `viper` command (pipx if available, else pip --user) **and** the VS Code / Cursor extension in one go.
+
 **From source (Linux / macOS):**
 
 ```sh
@@ -445,7 +453,9 @@ The v1 formatter is deliberately conservative: it strips trailing whitespace, co
 
 ## Editor Support
 
-After running `install.sh`, open a `.vp` file in **Neovim ≥ 0.8** — syntax highlighting and LSP autocomplete + live errors start automatically.
+**VS Code & Cursor:** run `install.ps1` (Windows) or copy `editor/vscode/viper/` into `~/.vscode/extensions/` / `~/.cursor/extensions/` — syntax highlighting, bracket matching, comment toggling, and auto-indent for `.vp` files. Details in `editor/vscode/README.md`.
+
+**Neovim ≥ 0.8:** after running `install.sh`, open a `.vp` file — syntax highlighting and LSP autocomplete + live errors start automatically.
 
 **Vim 8 users:** see `editor/README.md` for the `prabirshrestha/vim-lsp` setup snippet.
 
