@@ -1,0 +1,75 @@
+# dungeon.vp — Beta 1.0 stress test. Run: viper run dungeon.vp
+import asyncio
+from functools import lru_cache
+from itertools import islice
+import creatures            # .vp module
+
+@lru_cache(maxsize=32)
+fn crit_damage(level: int) -> int:
+    if level < 2:
+        return 3
+    return crit_damage(level - 1) + crit_damage(level - 2)
+
+# --- async generator + async for --------------------------------------
+async fn attack_stream(count):
+    let i = 1
+    while i <= count:
+        await asyncio.sleep(0.005)
+        yield crit_damage(i)
+        i += 1
+
+async fn battle(monster):
+    let hits = 0
+    async for dmg in attack_stream(10):
+        hits += 1
+        if monster.take_hit(dmg):
+            return (monster, hits)
+    return (monster, hits)
+
+async fn campaign(wave):
+    # fight everything concurrently, then yell about it
+    let results = await asyncio.gather(*[battle(m) for m in wave])
+    let cries = await asyncio.gather(*[creatures.war_cry(m.kind) for m, _ in results])
+    return (results, cries)
+
+# --- the run -----------------------------------------------------------
+let wave = list(creatures.spawn_wave(6))
+print("wave:", wave)
+
+let (results, cries) = asyncio.run(campaign(wave))
+
+for (monster, hits) in results:
+    match monster.hp:
+        case 0:
+            print(f"  {monster.kind} down in {hits} hits")
+        case _ as hp:
+            print(f"  {monster.kind} survived with {hp} hp")
+
+# pipes + placeholder + generators, chained
+let haul = creatures.all_loot(wave) |> sum
+let trimmed = haul |> clamp(_, 0, 150)
+print(f"loot: {haul} (banked: {trimmed})")
+
+# walrus + comprehension + slices
+let table = {c.kind: c.loot for c in wave}
+if (n := len(table)) > 0:
+    pp(table)
+    print("kinds:", sorted(table)[0:3])
+
+# error handling with chaining
+try:
+    raise ValueError("the chest was trapped") from KeyError("mimic")
+except ValueError as e:
+    print(f"caught: {e} (cause: {e.__cause__})")
+
+# prelude file io + with
+write_file("quest.log", "\n".join(cries) + "\n")
+with open("quest.log") as f:
+    print(f.read().strip() |> str.upper)
+
+spawn:
+    print("(a bard sings of your victory in another thread)")
+
+import time
+time.sleep(0.05)
+print("dungeon cleared.")

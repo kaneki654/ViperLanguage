@@ -1,0 +1,32 @@
+# creatures.vp — monster factory for dungeon.vp
+
+class Creature:
+    fn __init__(self, kind: str, hp: int, loot: int):
+        self.kind = kind
+        self.hp = hp
+        self.loot = loot
+
+    fn __repr__(self) -> str:
+        return f"{self.kind}(hp={self.hp})"
+
+    fn take_hit(self, dmg: int) -> bool:
+        # returns True when the creature drops
+        self.hp = clamp(self.hp - dmg, 0, 999)
+        return self.hp == 0
+
+fn spawn_wave(n):
+    # a generator of increasingly nasty monsters
+    let kinds = ["slime", "goblin", "wraith", "dragon"]
+    let i = 0
+    while i < n:
+        let kind = kinds[i % len(kinds)]
+        yield Creature(kind, 4 + i * 3, (i + 1) * 10)
+        i += 1
+
+fn all_loot(creatures):
+    yield from (c.loot for c in creatures)
+
+async fn war_cry(kind):
+    import asyncio
+    await asyncio.sleep(0.01)
+    return f"{kind} roars!"

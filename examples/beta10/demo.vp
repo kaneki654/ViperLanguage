@@ -1,0 +1,30 @@
+# demo.vp — Beta 1.0 feature tour
+# run me:            viper run demo.vp
+# see a traceback:   viper demo.vp boom
+# build me:          viper build demo.vp
+import sys
+import asyncio
+import mathkit          # <- this is a .vp file! (new in Beta 1.0)
+
+# 1. generators
+print("fib:", list(mathkit.fib_gen(8)))
+print("squares:", list(mathkit.first_squares(5)))
+
+# 2. async / await
+async fn slow_double(x):
+    await asyncio.sleep(0.05)
+    return x * 2
+
+async fn main():
+    let r = await slow_double(21)
+    print(f"async says {r}")
+
+asyncio.run(main())
+
+# 3. still friends with the classics
+let nums = [3, 1, 2] |> sorted
+pp({"nums": nums, "clamped": clamp(99, 0, 10)})
+
+# 4. cross-file traceback demo — run: viper demo.vp boom
+if "boom" in sys.argv:
+    mathkit.crash()

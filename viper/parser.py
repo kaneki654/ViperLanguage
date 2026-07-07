@@ -211,7 +211,10 @@ VIPER_GRAMMAR = r"""
     %ignore /#[^\n]*/
     %declare INDENT DEDENT
 
-    _NL: /(\r?\n[\t ]*)+/
+    // A newline, its indentation, and any comment-only lines in between.
+    // Swallowing comment lines here means a full-line comment inside a block
+    // can't split the newline token and confuse the indenter.
+    _NL: /(\r?\n[\t ]*(#[^\n]*)?)+/
 """
 
 

@@ -1,0 +1,18 @@
+# mathkit.vp — a Viper module, imported by demo.vp (new in Beta 1.0)
+
+fn fib_gen(n):
+    # generators — new in Beta 1.0
+    let (a, b) = (0, 1)
+    let i = 0
+    while i < n:
+        yield a
+        (a, b) = (b, a + b)
+        i += 1
+
+fn first_squares(n):
+    yield from (x * x for x in range(n))
+    yield -1    # sentinel, just to show yield after yield from
+
+fn crash():
+    # call this from demo.vp to see the cross-file Viper traceback
+    return 1 / 0

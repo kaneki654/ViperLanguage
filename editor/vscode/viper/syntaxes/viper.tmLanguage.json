@@ -1,0 +1,127 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Viper",
+    "scopeName": "source.viper",
+    "patterns": [
+        { "include": "#comments" },
+        { "include": "#decorators" },
+        { "include": "#fn-definition" },
+        { "include": "#class-definition" },
+        { "include": "#keywords" },
+        { "include": "#constants" },
+        { "include": "#builtins" },
+        { "include": "#fstrings" },
+        { "include": "#strings" },
+        { "include": "#numbers" },
+        { "include": "#operators" }
+    ],
+    "repository": {
+        "comments": {
+            "match": "#.*$",
+            "name": "comment.line.number-sign.viper"
+        },
+        "decorators": {
+            "match": "^\\s*(@)([A-Za-z_][\\w.]*)",
+            "captures": {
+                "1": { "name": "punctuation.decorator.viper" },
+                "2": { "name": "entity.name.function.decorator.viper" }
+            }
+        },
+        "fn-definition": {
+            "match": "\\b(fn)\\s+([A-Za-z_]\\w*)",
+            "captures": {
+                "1": { "name": "storage.type.function.viper" },
+                "2": { "name": "entity.name.function.viper" }
+            }
+        },
+        "class-definition": {
+            "match": "\\b(class)\\s+([A-Za-z_]\\w*)",
+            "captures": {
+                "1": { "name": "storage.type.class.viper" },
+                "2": { "name": "entity.name.type.class.viper" }
+            }
+        },
+        "keywords": {
+            "patterns": [
+                {
+                    "match": "\\b(if|elif|else|while|for|match|case|try|except|finally|return|break|continue|pass|raise|yield|await|with|assert)\\b",
+                    "name": "keyword.control.viper"
+                },
+                {
+                    "match": "\\b(let|fn|class|spawn|async|global|nonlocal|del)\\b",
+                    "name": "storage.type.viper"
+                },
+                {
+                    "match": "\\b(import|from|as)\\b",
+                    "name": "keyword.control.import.viper"
+                },
+                {
+                    "match": "\\b(and|or|not|in|is)\\b",
+                    "name": "keyword.operator.logical.viper"
+                }
+            ]
+        },
+        "constants": {
+            "match": "\\b(True|False|None)\\b",
+            "name": "constant.language.viper"
+        },
+        "builtins": {
+            "match": "\\b(print|len|range|int|float|str|bool|list|dict|set|tuple|sum|min|max|abs|sorted|enumerate|zip|map|filter|input|round|type|repr|isinstance|issubclass|hasattr|getattr|setattr|delattr|iter|next|open|reversed|any|all|id|hex|bin|oct|ord|chr|hash|vars|dir|callable|super|staticmethod|classmethod|property|pp|read_file|write_file|clamp)\\b(?=\\s*\\()",
+            "name": "support.function.builtin.viper"
+        },
+        "fstrings": {
+            "patterns": [
+                {
+                    "begin": "f\"",
+                    "end": "\"",
+                    "name": "string.interpolated.viper",
+                    "patterns": [
+                        { "match": "\\\\.", "name": "constant.character.escape.viper" },
+                        { "match": "\\{[^{}]*\\}", "name": "meta.embedded.expression.viper" }
+                    ]
+                },
+                {
+                    "begin": "f'",
+                    "end": "'",
+                    "name": "string.interpolated.viper",
+                    "patterns": [
+                        { "match": "\\\\.", "name": "constant.character.escape.viper" },
+                        { "match": "\\{[^{}]*\\}", "name": "meta.embedded.expression.viper" }
+                    ]
+                }
+            ]
+        },
+        "strings": {
+            "patterns": [
+                {
+                    "begin": "\"",
+                    "end": "\"",
+                    "name": "string.quoted.double.viper",
+                    "patterns": [
+                        { "match": "\\\\.", "name": "constant.character.escape.viper" }
+                    ]
+                },
+                {
+                    "begin": "'",
+                    "end": "'",
+                    "name": "string.quoted.single.viper",
+                    "patterns": [
+                        { "match": "\\\\.", "name": "constant.character.escape.viper" }
+                    ]
+                }
+            ]
+        },
+        "numbers": {
+            "match": "\\b(0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\\d[\\d_]*\\.?[\\d_]*([eE][+-]?\\d+)?[jJ]?)\\b",
+            "name": "constant.numeric.viper"
+        },
+        "operators": {
+            "patterns": [
+                { "match": "\\|>", "name": "keyword.operator.pipe.viper" },
+                { "match": ":=", "name": "keyword.operator.walrus.viper" },
+                { "match": "->", "name": "keyword.operator.arrow.viper" },
+                { "match": "(\\*\\*|//|<<|>>|[+\\-*/%<>=!&^|~])=?", "name": "keyword.operator.viper" }
+            ]
+        }
+    }
+}
