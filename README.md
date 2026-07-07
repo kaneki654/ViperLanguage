@@ -14,7 +14,29 @@ Viper transpiles to Python, so every Python module works out of the box — `imp
 
 ## Changelog
 
-### ALPHA-0.0.3 *(current)*
+### BETA-1.0.0b1 *(current)*
+
+The first Beta. Viper graduates from a single-file toy to a language you can build real projects in: multi-file programs, generators, async, a compiler command, a formatter, and error messages that stay in Viper-land even across files.
+
+**Language:**
+
+- **Generators — `yield` and `yield from`** — any `fn` containing `yield` becomes a generator, exactly like Python. `yield from` delegates to another generator. (Limitation: `yield` is statement-only for now, so the `let x = yield` / `.send()` protocol isn't supported yet.)
+- **Async — `async fn`, `await`, `async for`, `async with`** — the full asyncio ecosystem now works from Viper. `await` is an expression, so `let r = await fetch(url)` works anywhere an expression does. Decorators work on `async fn`.
+
+**Multi-file programs:**
+
+- **Viper-to-Viper imports** — `import utils` now finds `utils.vp` next to your script (or anywhere on `sys.path`), transpiles it on the fly, and caches it like a normal module. `from utils import helper` works too. Split your project into as many `.vp` files as you like.
+- **Cross-file source-mapped tracebacks** — a runtime error anywhere in a multi-file program prints a full *Viper* call stack: every frame is mapped back to its `.vp` file and line, the innermost frame gets the caret block, and internal Python machinery is hidden.
+
+**Tooling:**
+
+- **`viper build file.vp`** — transpiles to a standalone `file.py` (the prelude is inlined, so the output runs on any machine with plain Python — no Viper install needed). `-o out.py` picks the destination.
+- **`viper fmt file.vp ...`** — conservative formatter: strips trailing whitespace, converts leading tabs to 4 spaces, collapses 3+ blank lines, guarantees a single trailing newline. It refuses to write unless the transpiled Python is byte-identical before and after, so it can never change what your program does. `--check` reports without writing (exit 1 if dirty — ideal for CI).
+- **Shebang / direct run** — `viper script.vp` now works without the `run` subcommand, so `#!/usr/bin/env viper` works as the first line of an executable `.vp` file.
+- **PyPI-ready packaging** — proper PEP 440 beta version, MIT license, classifiers; `pip install viper-lang` gives everyone (including Windows) the `viper` command with no `install.sh`.
+- **7 new tests** covering generators, async, `.vp` imports, `build`, and `fmt`.
+
+### ALPHA-0.0.3
 
 Python parity, Viper-only superpowers, and a real test suite.
 
@@ -93,6 +115,14 @@ Added in this upgrade (on top of 0.0.2):
 
 ## Install
 
+**From PyPI (all platforms, including Windows):**
+
+```sh
+pip install viper-lang
+```
+
+**From source (Linux / macOS):**
+
 ```sh
 ./install.sh
 ```
@@ -107,7 +137,10 @@ The script tries `pipx` first (clean, isolated, global). Falls back to a project
 
 ```sh
 viper run hello.vp        # run a .vp file
+viper hello.vp            # same thing (enables #!/usr/bin/env viper shebangs)
 viper repl                # interactive prompt
+viper build hello.vp      # transpile to a standalone hello.py (-o out.py to choose)
+viper fmt src.vp          # format .vp files in place (--check for CI)
 viper help                # 5-minute interactive tutorial
 viper help match          # quick reference for a topic
 viper topics              # list all reference topics
@@ -286,6 +319,46 @@ except:              # rejected: name the exception, e.g. 'except Exception:'
 let list = [1, 2]    # rejected: shadows the builtin 'list'
 ```
 
+### Generators
+
+```
+fn counter(n):
+    let i = 0
+    while i < n:
+        yield i
+        i += 1
+
+fn doubled(n):
+    yield from counter(n)   # delegate to another generator
+    yield 99
+
+print(list(doubled(3)))     # [0, 1, 2, 99]
+```
+
+Any `fn` containing `yield` becomes a generator — it produces values lazily, one at a time, and keeps its state between calls. Use `yield from` to delegate to another generator. Generators work everywhere Python's do: `for` loops, `list()`, `sum()`, `next()`, comprehensions.
+
+> Limitation: `yield` is statement-only. `let x = yield` (the `.send()` protocol) isn't supported yet.
+
+### Async / await
+
+```
+import asyncio
+
+async fn fetch(x):
+    await asyncio.sleep(0.1)     # await is an expression
+    return x * 2
+
+async fn main():
+    let r = await fetch(21)
+    print(f"got {r}")            # got 42
+
+asyncio.run(main())
+```
+
+`async fn` defines a coroutine; `await` suspends until it finishes. Because `await` is an expression, it works anywhere: `let r = await f()`, `print(await g())`, even inside pipes. `async for` and `async with` are also supported, so async iterators and async context managers (aiohttp sessions, database pools, …) work as expected. Decorators work on `async fn`.
+
+Entry point rule is the same as Python's: kick things off with `asyncio.run(main())`.
+
 ### Spawn
 
 ```
@@ -293,17 +366,54 @@ spawn:
     print("running in the background")
 ```
 
-Runs the block in a daemon thread (fire-and-forget).
+Runs the block in a daemon thread (fire-and-forget). For structured concurrency, prefer `async fn` + `asyncio`.
 
 ### Imports
 
 ```
-import math
+import math                        # any Python module
 from os import path
 from collections import defaultdict
+
+import utils                       # finds utils.vp next to your script!
+from helpers import shortcut       # helpers.vp works too
 ```
 
-Any Python module works.
+Any Python module works — and as of Beta 1.0, so does any **Viper module**. `import utils` looks for `utils.vp` in the running script's directory (and the rest of `sys.path`), transpiles it on the fly, and caches it like a normal module. Split your program into as many `.vp` files as you like; the prelude (`pp`, `read_file`, …) is available in every one of them.
+
+### Error messages that stay in Viper
+
+Parse errors have always pointed at your `.vp` source with a caret. As of Beta 1.0, *runtime* errors do too — across files. A crash three modules deep prints a full Viper call stack:
+
+```
+traceback (most recent call last):
+  at main.vp:4
+error: ZeroDivisionError: division by zero
+ --> mathutils.vp:5:1
+  |
+5 |     return 1 / 0
+  | ^
+```
+
+Every frame is mapped back to its `.vp` file and line; Python's internal machinery is hidden.
+
+### Building standalone Python files
+
+```sh
+viper build script.vp            # writes script.py
+viper build script.vp -o app.py  # choose the output name
+```
+
+The output is plain, dependency-free Python — the Viper prelude is inlined at the top — so it runs anywhere Python 3.10+ runs, with no Viper installation. Use it to ship code to people who don't have Viper, or to inspect exactly what your program transpiles to.
+
+### Formatting
+
+```sh
+viper fmt src.vp            # fix in place
+viper fmt --check src.vp    # report only; exit 1 if anything would change
+```
+
+The v1 formatter is deliberately conservative: it strips trailing whitespace, converts leading tabs to 4 spaces, collapses runs of blank lines, and ensures a single trailing newline. Safety gate: it refuses to write unless the transpiled Python is byte-identical before and after — it can never change what your program does. Wire `--check` into CI to keep a codebase clean.
 
 ---
 
@@ -323,4 +433,6 @@ After running `install.sh`, open a `.vp` file in **Neovim ≥ 0.8** — syntax h
 
 ## License
 
-"wala license ginawa ko lang kasi gusto ko"
+MIT — see `LICENSE`.
+
+*(Formerly: "wala license ginawa ko lang kasi gusto ko" — retired in Beta 1.0 so PyPI tooling doesn't choke.)*

@@ -19,7 +19,10 @@ def _fresh_namespace() -> dict:
     ns.update(_PRELUDE)
     return ns
 def run_source(source: str, filename: str = "<viper>", namespace: dict | None = None) -> dict:
+    from . import importer, sourcemap
+    importer.install()
     py_source, line_map = transpile(source, filename)
+    sourcemap.register(filename, source, line_map)
     ns = namespace if namespace is not None else _fresh_namespace()
     try:
         code = compile(py_source, filename, "exec")

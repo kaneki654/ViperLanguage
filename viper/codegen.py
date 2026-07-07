@@ -213,6 +213,15 @@ class _Codegen:
         self.emit("nonlocal " + ", ".join(t.value for t in node.children),
                   indent, node.meta.line)
 
+    def _stmt_yield_stmt(self, node, indent):
+        if node.children:
+            self.emit(f"yield {self.gen_expr(node.children[0])}", indent, node.meta.line)
+        else:
+            self.emit("yield", indent, node.meta.line)
+
+    def _stmt_yield_from_stmt(self, node, indent):
+        self.emit(f"yield from {self.gen_expr(node.children[0])}", indent, node.meta.line)
+
     # -- control flow ------------------------------------------------------
     def _stmt_if_stmt(self, node, indent):
         cond = node.children[0]
@@ -271,6 +280,9 @@ class _Codegen:
             decorators.append(ch.pop(0))
         for dec in decorators:
             self.emit(self._gen_decorator(dec), indent, dec.meta.line)
+        self._emit_fn(ch, indent, node.meta.line)
+
+    def _emit_fn(self, ch, indent, line, keyword="def"):
         name = ch[0].value
         params, suite, ret_type = "", None, None
         for child in ch[1:]:
@@ -281,7 +293,7 @@ class _Codegen:
             elif isinstance(child, Tree) and _rule(child) == "suite":
                 suite = child
         arrow = f" -> {ret_type}" if ret_type else ""
-        self.emit(f"def {name}({params}){arrow}:", indent, node.meta.line)
+        self.emit(f"{keyword} {name}({params}){arrow}:", indent, line)
         self.gen_suite(suite, indent + 1)
 
     def _gen_decorator(self, node: Tree) -> str:
@@ -363,6 +375,47 @@ class _Codegen:
                 suite = c
         self.emit(f"with {', '.join(items)}:", indent, node.meta.line)
         self.gen_suite(suite, indent + 1)
+
+    def _stmt_async_stmt(self, node, indent):
+        ch = list(node.children)
+        decorators = []
+        while ch and isinstance(ch[0], Tree) and _rule(ch[0]) == "decorator":
+            decorators.append(ch.pop(0))
+        tail = ch[0]
+        r = _rule(tail)
+        if r == "async_fn_tail":
+            for dec in decorators:
+                self.emit(self._gen_decorator(dec), indent, dec.meta.line)
+            self._emit_fn(list(tail.children), indent, node.meta.line,
+                          keyword="async def")
+            return
+        if decorators:
+            raise ViperError(
+                "decorators are only allowed on 'async fn', not on "
+                "'async for' / 'async with'."
+            )
+        if r == "async_for_tail":
+            target = self.gen_target_list(tail.children[0])
+            iterable = self.gen_expr(tail.children[1])
+            self.emit(f"async for {target} in {iterable}:", indent, node.meta.line)
+            self.gen_suite(tail.children[2], indent + 1)
+            for clause in tail.children[3:]:
+                if isinstance(clause, Tree) and _rule(clause) == "else_clause":
+                    self.emit("else:", indent, clause.meta.line)
+                    self.gen_suite(clause.children[0], indent + 1)
+        elif r == "async_with_tail":
+            items, suite = [], None
+            for c in tail.children:
+                if isinstance(c, Tree) and _rule(c) == "with_item":
+                    ex = self.gen_expr(c.children[0])
+                    if len(c.children) == 2:
+                        items.append(f"{ex} as {self.gen_target(c.children[1])}")
+                    else:
+                        items.append(ex)
+                elif isinstance(c, Tree) and _rule(c) == "suite":
+                    suite = c
+            self.emit(f"async with {', '.join(items)}:", indent, node.meta.line)
+            self.gen_suite(suite, indent + 1)
 
     # -- params / types ----------------------------------------------------
     def gen_params(self, param_list: Tree) -> str:
@@ -608,6 +661,9 @@ class _Codegen:
     def _expr_unary(self, node):
         op = node.children[0].children[0].value
         return f"({op}{self.gen_expr(node.children[1])})"
+
+    def _expr_await_expr(self, node):
+        return f"(await {self.gen_expr(node.children[0])})"
 
     def _expr_power(self, node):
         if len(node.children) == 1: return self.gen_expr(node.children[0])

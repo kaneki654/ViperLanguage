@@ -86,17 +86,34 @@ def _humanize(token_type: str) -> str:
 
 def format_runtime_error(exc: BaseException, source: str, filename: str,
                          line_map: dict[int, int]) -> str:
-    """Map a Python exception from exec back to the Viper source line."""
+    """Render a Viper traceback: every frame that lives in a transpiled .vp
+    file is mapped back to its Viper line; the innermost one gets a caret."""
     import traceback
+    from . import sourcemap
 
-    viper_line = None
-    for frame in reversed(traceback.extract_tb(exc.__traceback__)):
-        if frame.filename == filename:
-            viper_line = line_map.get(frame.lineno, frame.lineno)
-            break
+    frames = []
+    for fr in traceback.extract_tb(exc.__traceback__):
+        reg = sourcemap.lookup(fr.filename)
+        if reg is None:
+            if fr.filename == filename:
+                reg = (source, line_map)
+            else:
+                continue  # internal / library frame — hide it
+        vsrc, vmap = reg
+        frames.append((fr.filename, sourcemap.map_line(vmap, fr.lineno),
+                       fr.name, vsrc))
 
     etype = type(exc).__name__
     msg = str(exc)
-    if viper_line is not None:
-        return _caret_block(source, viper_line, 1, filename, f"{etype}: {msg}")
-    return f"error: {etype}: {msg}"
+    if not frames:
+        return f"error: {etype}: {msg}"
+
+    out = []
+    if len(frames) > 1:
+        out.append("traceback (most recent call last):")
+        for fname, vline, func, _ in frames[:-1]:
+            where = "" if func == "<module>" else f" in {func}"
+            out.append(f"  at {fname}:{vline}{where}")
+    fname, vline, func, vsrc = frames[-1]
+    out.append(_caret_block(vsrc, vline, 1, fname, f"{etype}: {msg}"))
+    return "\n".join(out)

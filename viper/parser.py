@@ -21,6 +21,7 @@ VIPER_GRAMMAR = r"""
                | assert_stmt
                | global_stmt
                | nonlocal_stmt
+               | yield_stmt
                | expr_stmt
 
     ?compound_stmt: if_stmt
@@ -32,6 +33,7 @@ VIPER_GRAMMAR = r"""
                   | try_stmt
                   | spawn_stmt
                   | with_stmt
+                  | async_stmt
 
     import_stmt: "import" dotted_name ("," dotted_name)*        -> import_plain
                | "from" dotted_name "import" import_targets      -> import_from
@@ -79,6 +81,14 @@ VIPER_GRAMMAR = r"""
     with_stmt: "with" with_item ("," with_item)* ":" suite
     with_item: expr ("as" target)?
 
+    yield_stmt: "yield" "from" expr                      -> yield_from_stmt
+              | "yield" expr?
+
+    async_stmt: decorator* "async" async_tail
+    async_tail: "fn" NAME "(" param_list? ")" ("->" type)? ":" suite  -> async_fn_tail
+              | "for" target_list "in" expr ":" suite else_clause?    -> async_for_tail
+              | "with" with_item ("," with_item)* ":" suite           -> async_with_tail
+
     decorator: "@" dotted_name ("(" arg_list? ")")? _NL
 
     param_list: param ("," param)* ("," "...")?
@@ -111,6 +121,7 @@ VIPER_GRAMMAR = r"""
     ?term: factor (mul_op factor)*
     !mul_op: "*" | "/" | "//" | "%"
     ?factor: unary_op factor                             -> unary
+           | "await" factor                              -> await_expr
            | power
     !unary_op: "+" | "-" | "~"
     ?power: postfix ("**" factor)?

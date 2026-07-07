@@ -7,6 +7,8 @@ KEYWORDS = [
     "class", "try", "except", "finally", "raise", "del", "as",
     # New in 0.0.3
     "with", "assert", "global", "nonlocal",
+    # New in 1.0.0b1
+    "yield", "async", "await",
 ]
 
 BUILTINS = [
