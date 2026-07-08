@@ -19,7 +19,7 @@ if (n := len(evens)) > 0:
     print(f"got {n} evens")
 print([3, 1, 2] |> sorted)
 print(3.14159 |> round(_, 2))
-pp({"name": "viper", "version": "alpha-0.0.3", "items": [1, 2, 3]})
+pp({"name": "viper", "version": "1.3.0b1", "items": [1, 2, 3]})
 print("clamp(10, 0, 5) =", clamp(10, 0, 5))
 let tmpdir = tempfile.mkdtemp()
 let path = os.path.join(tmpdir, "hello.txt")

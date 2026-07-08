@@ -12,6 +12,17 @@ def test_let_and_assign():
     assert "x = 1" in out and "x = 2" in out
 
 
+# --- 1.3.0b1: bytes and raw string literals pass straight through ------------
+def test_bytes_literals():
+    assert 'b"\\x00AB"' in py(r'let x = b"\x00AB"')
+    assert "b'abc'" in py("let x = b'abc'")
+
+
+def test_raw_string_literals():
+    assert 'r"\\d+"' in py(r'let pat = r"\d+"')
+    assert "rb'\\x00'" in py(r"let x = rb'\x00'")
+
+
 def test_aug_assign():
     assert "x += 1" in py("let x = 0\nx += 1")
 

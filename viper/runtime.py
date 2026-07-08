@@ -1,19 +1,6 @@
-import pprint as _pprint
-from pathlib import Path as _Path
 from .codegen import transpile
 from .errors import ViperError, format_runtime_error
-def _read_file(path: str, encoding: str = "utf-8") -> str:
-    return _Path(path).read_text(encoding=encoding)
-def _write_file(path: str, text: str, encoding: str = "utf-8") -> int:
-    return _Path(path).write_text(text, encoding=encoding)
-def _clamp(x, lo, hi):
-    return lo if x < lo else hi if x > hi else x
-_PRELUDE = {
-    "pp": _pprint.pprint,
-    "read_file": _read_file,
-    "write_file": _write_file,
-    "clamp": _clamp,
-}
+from .std import PRELUDE as _PRELUDE   # batteries-included stdlib (viper/std.py)
 def _fresh_namespace() -> dict:
     ns = {"__name__": "__main__", "__builtins__": __builtins__}
     ns.update(_PRELUDE)

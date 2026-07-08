@@ -1,0 +1,25 @@
+# automation.vp — a glue script: checksum a folder and write a JSON report.
+# Pure Viper stdlib — no imports beyond os/tempfile, runs anywhere.
+import os, tempfile
+
+# Make a small tree to work on.
+let root = tempfile.mkdtemp()
+for i in range(3):
+    write_file(os.path.join(root, f"file{i}.txt"), f"contents of file {i}\n")
+
+# Build a checksum manifest for every file in the directory.
+let manifest = {}
+for name in ls(root):
+    manifest[name] = file_sha256(os.path.join(root, name))
+
+# Write a JSON report, then read it straight back.
+let report = {"generated": now(), "root": root, "files": manifest}
+let report_path = os.path.join(root, "report.json")
+write_json(report_path, report)
+print("wrote", report_path)
+pp(read_json(report_path))
+
+# Shell out for a tool version (cross-platform).
+let py = which("python") or which("python3")
+if py is not None:
+    print("python:", sh_out(f'"{py}" --version').strip())

@@ -42,13 +42,11 @@ from lark.exceptions import UnexpectedInput
 
 from .parser import parser
 from .keywords import KEYWORDS, BUILTINS
+from .std import STD_DOCS
 
-_PRELUDE_DOCS = {
-    "pp": ("pp(obj)", "Pretty-print any object (Viper prelude)."),
-    "read_file": ("read_file(path, encoding='utf-8') -> str", "Read a whole file as text (Viper prelude)."),
-    "write_file": ("write_file(path, text, encoding='utf-8') -> int", "Write text to a file (Viper prelude)."),
-    "clamp": ("clamp(x, lo, hi)", "Clamp x into the range [lo, hi] (Viper prelude)."),
-}
+# name -> (signature, one-line doc) for every stdlib prelude helper, so
+# completion / hover / signature help document them. Sourced from viper/std.py.
+_PRELUDE_DOCS = dict(STD_DOCS)
 
 
 def _rule(node) -> str:
@@ -641,8 +639,9 @@ _RE_PARAM = re.compile(r"^\s*(\w+)\s*:\s*([\w\[\]., ]+?)\s*(?:=.*)?$")
 
 def _infer_expr_type(rhs: str, info: DocumentInfo) -> str | None:
     rhs = rhs.strip()
-    if re.match(r"""^(?:[frbu]{1,2})?["']""", rhs, re.IGNORECASE):
-        return "str"
+    m = re.match(r"""^([frbu]{1,2})?["']""", rhs, re.IGNORECASE)
+    if m:
+        return "bytes" if m.group(1) and "b" in m.group(1).lower() else "str"
     if re.match(r"^-?(?:\d+\.\d*|\.\d+|\d+[eE][-+]?\d+)", rhs):
         return "float"
     if re.match(r"^-?\d+$", rhs):

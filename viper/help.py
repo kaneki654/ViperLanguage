@@ -95,9 +95,19 @@ TOPICS = {
         "let (a, b, c) = (1, 2, 3)\nlet head, *tail = [1, 2, 3, 4]",
     ),
     "prelude": (
-        "Built into every Viper run: pp (pretty-print), read_file(path), "
-        "write_file(path, text), clamp(x, lo, hi).",
-        'write_file("hi.txt", "hello")\nprint(read_file("hi.txt"))',
+        "Batteries included — no import needed, in every Viper run:\n"
+        "  hashing   sha256 sha1 sha512 md5 hmac256 file_sha256\n"
+        "  encoding  b64 unb64 to_hex from_hex url_quote url_unquote\n"
+        "  random    rand_token rand_int uuid4\n"
+        "  http      http_get http_post http_status download\n"
+        "  shell     sh sh_out which\n"
+        "  json/fs   json_parse json_str read_json write_json read_lines ls exists env\n"
+        "  data      hexdump sleep now port_open\n"
+        "  classic   pp read_file write_file clamp\n"
+        "See any one with hover in your editor, or 'viper help <name>'.",
+        'let body = http_get("https://example.com")\n'
+        'print(sha256(body))\n'
+        'print(hexdump(unb64("ZmxhZ3tva30=")))',
     ),
     "global": (
         "Declare module-level bindings inside a function.",
@@ -122,13 +132,21 @@ ALIASES = {
     "case": "match",
     "type": "types",
     "comp": "comprehension", "genexp": "comprehension",
-    "stdlib": "prelude",
+    "stdlib": "prelude", "std": "prelude", "batteries": "prelude",
 }
 
 
 def show_topic(name: str) -> int:
     key = ALIASES.get(name, name)
     if key not in TOPICS:
+        # maybe it's a stdlib prelude helper, e.g. `viper help sha256`
+        from .std import STD_DOCS
+        if name in STD_DOCS:
+            sig, doc = STD_DOCS[name]
+            print(header(f"viper · {name}")); print()
+            print(doc); print()
+            print(dim("signature:")); print("    " + sig)
+            return 0
         print(f"unknown topic: {name!r}\n"); list_topics(); return 1
     explain, example = TOPICS[key]
     print(header(f"viper · {key}")); print()

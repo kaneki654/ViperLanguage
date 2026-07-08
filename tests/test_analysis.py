@@ -51,7 +51,8 @@ def test_default_completions_include_document_fns():
     assert "let" in labels          # keywords still present
     assert "print" in labels        # builtins still present
     assert "pp" in labels           # prelude documented
-    assert "prelude" in labels["pp"].documentation.lower()
+    assert "pretty-print" in labels["pp"].documentation.lower()
+    assert "sha256" in labels        # batteries-included stdlib present
 
 
 def test_dot_completion_python_module():

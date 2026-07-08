@@ -205,8 +205,10 @@ VIPER_GRAMMAR = r"""
     // Underscores allowed as digit separators, like Python (1_000_000).
     NUMBER: /0[xX][0-9a-fA-F](_?[0-9a-fA-F])*|0[oO][0-7](_?[0-7])*|0[bB][01](_?[01])*|((\d(_?\d)*\.(\d(_?\d)*)?|\.\d(_?\d)*|\d(_?\d)*)([eE][+-]?\d(_?\d)*)?[jJ]?)/
     // Strings: double OR single quoted, like Python. f-strings handled above.
-    STRING: /"[^"\\]*(?:\\.[^"\\]*)*"/
-          | /'[^'\\]*(?:\\.[^'\\]*)*'/
+    // Optional prefixes: r (raw), b (bytes), and rb/br combos — pass straight
+    // through to Python, so b"\x00" and r"\d+" mean exactly what they do there.
+    STRING: /([rR]|[bB]|[rR][bB]|[bB][rR])?"[^"\\]*(?:\\.[^"\\]*)*"/
+          | /([rR]|[bB]|[rR][bB]|[bB][rR])?'[^'\\]*(?:\\.[^'\\]*)*'/
     %import common.CNAME -> NAME
     %import common.WS_INLINE
     %ignore WS_INLINE

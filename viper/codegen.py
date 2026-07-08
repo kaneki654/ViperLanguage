@@ -8,11 +8,13 @@ from lark import Tree, Token
 from .errors import ViperError, format_parse_error
 from .parser import parser
 from .keywords import BUILTINS
+from .std import STD_NAMES
 
 # ---- footgun guard config ---------------------------------------------------
 # Viper's stdlib prelude helpers live in BUILTINS for editor completion, but are
 # plain namespace names users may freely shadow — keep them out of the guard set.
-_PRELUDE_NAMES = {"pp", "read_file", "write_file", "clamp"}
+# Only true Python builtins are guarded against `let` shadowing.
+_PRELUDE_NAMES = set(STD_NAMES)
 _BUILTIN_NAMES = set(BUILTINS) - _PRELUDE_NAMES
 
 

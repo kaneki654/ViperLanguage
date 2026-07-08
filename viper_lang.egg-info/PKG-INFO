@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: viper-lang
-Version: 1.2.0b1
+Version: 1.3.0b1
 Summary: Viper — a friendly language that transpiles to Python. Every Python module works out of the box.
 Author-email: "G0Ju.VBS" <kaneivbs@gmail.com>
 License: MIT
@@ -26,21 +26,96 @@ Dynamic: license-file
 
 # Viper Language
 
-A clean, Python-connected scripting language. Write `.vp`, run Python.
+**The batteries-included scripting language.** Write `.vp`, run Python — but the
+automation and security glue that takes five imports and a dozen lines in Python
+is a one-liner in Viper.
 
 ```
-let name = "world"
-print(f"Hello, {name}!")
-print(3.14159 |> round(_, 2))
+# no imports needed — this is the whole program
+let body = http_get("https://example.com")
+print(sha256(body))
+print(hexdump(unb64("ZmxhZ3tva30=")))
 ```
 
-Viper transpiles to Python, so every Python module works out of the box — `import math`, `import os`, anything. It aims to be a little friendlier than Python: clear error messages, a few footgun guards, a pipe operator with placeholders, and a small built-in stdlib.
+Viper transpiles to Python, so every Python module still works out of the box —
+`import math`, `import os`, anything. What Viper adds on top is the thing Python
+makes you assemble yourself every time: a curated standard library that's always
+in scope (hashing, encoding, HMAC, HTTP, shell, JSON, files), a left-to-right
+pipe operator (`|>`), clearer error messages, and footgun guards.
+
+**One-liners, too:**
+
+```
+viper -c 'print(sha256("hunter2"))'
+echo '{"a":1}' | viper -
+```
+
+### Why Viper instead of Python?
+
+For a short automation/security/glue script, ceremony is the enemy. Viper's bet
+is that the 20-line-with-5-imports script is the common case, and it should be
+5 lines with none. If you're building a large application, use Python — you
+inherit its whole ecosystem from Viper anyway. Viper is sharpest where scripts
+are small and you want to move fast: pipelines, CTF/CTF-style tooling, ops glue.
 
 ---
 
 ## Changelog
 
-### BETA-1.1.0b1 *(current)*
+### BETA-1.3.0b1 *(current)* — batteries included
+
+Viper gets a real standard library and the ergonomics to be a language you reach
+for. Everything below is backed by the Python standard library — no third-party
+dependencies, cross-platform.
+
+**Standard prelude** (no import needed, in every run — `viper help std`):
+
+- **Hashing** — `sha256` `sha1` `sha512` `md5` `hmac256` `file_sha256`
+- **Encoding** — `b64` `unb64` `to_hex` `from_hex` `url_quote` `url_unquote`
+- **Randomness** — `rand_token` `rand_int` `uuid4` (crypto-strong)
+- **HTTP** — `http_get` `http_post` `http_status` `download`
+- **Shell** — `sh` `sh_out` `which`
+- **JSON / files** — `json_parse` `json_str` `read_json` `write_json` `read_lines` `ls` `exists` `env`
+- **Data** — `hexdump` `sleep` `now` `port_open`
+
+Each one shows its signature and docs on hover and in completion. Security helpers
+(hashing, HMAC verify, hexdump, checksums, a single TCP reachability check) are the
+ordinary plumbing of CTF challenges, authorized testing, and defensive tooling.
+
+**Language:**
+
+- **Bytes and raw string literals** — `b"\x00\xff"` and `r"\d+"` now parse and pass
+  straight through to Python. Essential for binary and security work.
+
+**CLI:**
+
+- **`viper -c CODE`** runs a snippet; **`viper -`** runs Viper from stdin. Viper is
+  now a first-class tool for one-off scripts and pipelines.
+- **`viper help <name>`** documents any stdlib helper, e.g. `viper help hmac256`.
+
+**Tooling:**
+
+- **`viper build`** output is still fully self-contained — the stdlib helpers'
+  actual source is inlined, so a built `.py` needs no `viper-lang` install.
+- **New examples** — `examples/security.vp` (offline CTF helpers) and
+  `examples/automation.vp` (checksum-a-folder glue script).
+- **34 new tests** covering the stdlib, bytes/raw literals, self-contained builds,
+  the `-c` CLI, and editor awareness of the prelude.
+
+**Roadmap (the next reason to switch):** make `let` and type annotations *mean*
+something — single-assignment enforcement and light type checking at transpile
+time, so `let x: int` becomes a guarantee, not decoration. The analysis engine
+that already powers completion will power the checker.
+
+### BETA-1.2.0b1 — Python-grade completions
+
+A rewritten analysis engine: per-keystroke caching (warm completions answer in
+well under a millisecond), Pylance-style ranking, type inference for `let`
+bindings and `self.`, auto-import completions from workspace `.vp` files, go-to-
+definition, and a document outline. Completions keep working even while the
+current line doesn't parse.
+
+### BETA-1.1.0b1
 
 Python-grade editor intelligence. Viper autocompletion in VS Code and Cursor now behaves like Python's, not like a static word list.
 
