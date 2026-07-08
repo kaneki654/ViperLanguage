@@ -46,7 +46,8 @@ Write-Host "using $python ($(& $python --version))"
 # --- 2. install viper: pipx if available, else pip --user -----------------
 if (Get-Command pipx -ErrorAction SilentlyContinue) {
     Write-Host "installing with pipx..."
-    pipx install --force $repo
+    pipx install --force "$repo[lsp]"
+    pipx inject viper-lang "pygls>=2.1,<3" *> $null   # belt & suspenders: the LSP dep
     pipx ensurepath *> $null
     # pipx's shim directory, so this session works immediately too
     try { $pipxBin = pipx environment --value PIPX_BIN_DIR 2>$null } catch { $pipxBin = $null }
@@ -54,34 +55,30 @@ if (Get-Command pipx -ErrorAction SilentlyContinue) {
     Add-ToUserPath $pipxBin
 } else {
     Write-Host "pipx not found - installing with pip --user..."
-    & $python -m pip install --user $repo
+    & $python -m pip install --user "$repo[lsp]"
+    # belt & suspenders: editor autocompletion dies without pygls, so make sure
+    & $python -m pip install --user "pygls>=2.1,<3" --quiet
     $scripts = & $python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
     Add-ToUserPath $scripts
 }
 
 # --- 3. editor extension: VS Code + Cursor --------------------------------
-$ext = Join-Path $repo "editor\vscode\viper"
-$targets = @(
-    (Join-Path $env:USERPROFILE ".vscode\extensions"),
-    (Join-Path $env:USERPROFILE ".cursor\extensions")
-)
-foreach ($dir in $targets) {
-    if (Test-Path (Split-Path $dir)) {
-        $dest = Join-Path $dir "viper-lang.viper-1.0.0"
-        New-Item -ItemType Directory -Force -Path $dest | Out-Null
-        Copy-Item -Recurse -Force "$ext\*" $dest
-        Write-Host "editor extension installed -> $dest" -ForegroundColor Green
-    }
+# Copying the folder is not enough: modern VS Code/Cursor only load extensions
+# listed in extensions.json (and not flagged in .obsolete). The helper copies
+# AND registers, for every editor it finds.
+& $python (Join-Path $repo "editor\vscode\register_extension.py")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "warning: editor extension setup hit a problem (see above) - viper itself is fine" -ForegroundColor Yellow
 }
-Write-Host "(restart VS Code / Cursor to activate .vp highlighting)"
 
 # --- 4. verify -------------------------------------------------------------
 Write-Host ""
 if (Get-Command viper -ErrorAction SilentlyContinue) {
-    viper --version
+    viper doctor
     Write-Host ""
     Write-Host "Viper is ready to use RIGHT NOW in this window. Try:  viper repl" -ForegroundColor Cyan
-    Write-Host "(other terminals that are already open need to be reopened once)"
+    Write-Host "(other terminals that are already open need to be reopened once;"
+    Write-Host " VS Code / Cursor: fully quit and reopen to pick up the new extension)"
 } else {
     Write-Host "Installed, but 'viper' was not found - close this terminal, open a new one," -ForegroundColor Yellow
     Write-Host "and run 'viper --version'. If it still fails, tell me the output of:" -ForegroundColor Yellow

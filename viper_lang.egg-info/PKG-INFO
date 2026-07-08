@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: viper-lang
-Version: 1.0.0b1
+Version: 1.2.0b1
 Summary: Viper — a friendly language that transpiles to Python. Every Python module works out of the box.
 Author-email: "G0Ju.VBS" <kaneivbs@gmail.com>
 License: MIT
@@ -40,7 +40,36 @@ Viper transpiles to Python, so every Python module works out of the box — `imp
 
 ## Changelog
 
-### BETA-1.0.0b1 *(current)*
+### BETA-1.1.0b1 *(current)*
+
+Python-grade editor intelligence. Viper autocompletion in VS Code and Cursor now behaves like Python's, not like a static word list.
+
+**Editor (VS Code + Cursor):**
+
+- **Bundled LSP client** — the extension now launches `viper --lsp` automatically for `.vp` files (single-file bundle, no npm install needed). If Viper isn't on PATH it shows a friendly fix-it message instead of failing silently. New setting: `viper.lspPath`.
+- **Smart completions** — real symbols from your file (every `fn` with its full signature, classes, `let` bindings, parameters when the cursor is inside their function), not just keywords.
+- **Dot-completion** — `math.` lists the real members of `math` with signatures and docs; works through aliases (`import collections as coll` → `coll.` works) and for **Viper modules** (`import utils` → `utils.` lists what utils.vp defines — parsed, never executed).
+- **Context awareness** — `import `/`from ` complete module names (stdlib + workspace `.vp` files), `from math import ` completes members, `async ` suggests only `fn`/`for`/`with`, and nothing pops up inside strings or comments.
+- **Signature help** — parameter hints with the active argument highlighted while typing a call, for Viper functions, classes (`Point(` shows `__init__`'s params), builtins, and imported Python functions.
+- **Hover docs** — signature + docstring for the symbol under the cursor; keywords point at `viper help <topic>`.
+- **Broken-buffer tolerance** — mid-keystroke code that doesn't parse still completes, using the cursor-line-blanked retry or the last good analysis.
+
+**Language:**
+
+- **`import x as y` / `from m import a as b`** — import aliases now parse and transpile (they were missing; dot-completion made the gap obvious).
+
+**Internals:**
+
+- New `viper/analysis.py` — all editor intelligence as a pure, LSP-free module; `viper/lsp.py` is now a thin adapter over it.
+- **16 new tests**, including a true end-to-end test that spawns `viper --lsp` and speaks LSP over stdio.
+
+**1.1.1 follow-up (the vanished-completions fix):**
+
+- **`viper doctor`** — one command that checks Python, lark, pygls, PATH, and the editor extensions, and prints exactly what to fix.
+- **Extension fallback completions** — if the language server can't start (e.g. pygls missing), the extension now registers built-in keyword/builtin/buffer-word suggestions and offers a one-click "Run viper doctor" — completions can never fully disappear again.
+- **Hardened installer** — `install.ps1` force-installs pygls, cleans up old extension copies, and finishes by running `viper doctor`.
+
+### BETA-1.0.0b1
 
 The first Beta. Viper graduates from a single-file toy to a language you can build real projects in: multi-file programs, generators, async, a compiler command, a formatter, and error messages that stay in Viper-land even across files.
 
@@ -153,7 +182,7 @@ pip install viper-lang
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Installs the `viper` command (pipx if available, else pip --user) **and** the VS Code / Cursor extension in one go.
+Fully automatic: installs the `viper` command (pipx if available, else pip --user), **adds it to your PATH** (persistently, no admin needed — works immediately in the same window), and installs the VS Code / Cursor extension.
 
 **From source (Linux / macOS):**
 
@@ -175,6 +204,7 @@ viper hello.vp            # same thing (enables #!/usr/bin/env viper shebangs)
 viper repl                # interactive prompt
 viper build hello.vp      # transpile to a standalone hello.py (-o out.py to choose)
 viper fmt src.vp          # format .vp files in place (--check for CI)
+viper doctor              # diagnose installation / editor problems
 viper help                # 5-minute interactive tutorial
 viper help match          # quick reference for a topic
 viper topics              # list all reference topics
@@ -453,7 +483,7 @@ The v1 formatter is deliberately conservative: it strips trailing whitespace, co
 
 ## Editor Support
 
-**VS Code & Cursor:** run `install.ps1` (Windows) or copy `editor/vscode/viper/` into `~/.vscode/extensions/` / `~/.cursor/extensions/` — syntax highlighting, bracket matching, comment toggling, and auto-indent for `.vp` files. Details in `editor/vscode/README.md`.
+**VS Code & Cursor:** run `install.ps1` (Windows) or copy `editor/vscode/viper/` into `~/.vscode/extensions/` / `~/.cursor/extensions/` — syntax highlighting **plus Python-grade smarts via the bundled LSP client**: context-aware autocompletion with signatures and docs, dot-completion for Python *and* Viper modules, signature help, hover docs, and live error squiggles. Needs `pip install \"viper-lang[lsp]\"` (the installers do this for you). Details in `editor/vscode/README.md`.
 
 **Neovim ≥ 0.8:** after running `install.sh`, open a `.vp` file — syntax highlighting and LSP autocomplete + live errors start automatically.
 

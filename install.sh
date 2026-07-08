@@ -15,7 +15,7 @@ echo
 # --- Install the CLI: prefer pipx, else venv + symlink ----------------------
 if have pipx; then
     echo "==> pipx found — installing globally"
-    pipx install --force "$SCRIPT_DIR"
+    pipx install --force "$SCRIPT_DIR[lsp]"
     # pipx installs base deps only; add the LSP extra so `viper --lsp` works.
     pipx inject viper-lang "$PYGLS"
     VIPER_NOTE="'viper' is on your PATH via pipx."
@@ -45,6 +45,12 @@ mkdir -p "$NVIM/ftdetect" "$NVIM/syntax" "$NVIM/ftplugin"
 cp "$SCRIPT_DIR/editor/ftdetect/viper.vim" "$NVIM/ftdetect/viper.vim"
 cp "$SCRIPT_DIR/editor/syntax/viper.vim"   "$NVIM/syntax/viper.vim"
 cp "$SCRIPT_DIR/editor/ftplugin/viper.lua" "$NVIM/ftplugin/viper.lua"
+
+# VS Code / Cursor — the helper copies the extension AND registers it in each
+# editor's extensions.json (modern VS Code/Cursor ignore unregistered folders).
+if have python3; then PY=python3; else PY=python; fi
+"$PY" "$SCRIPT_DIR/editor/vscode/register_extension.py" ||
+    echo "warning: VS Code/Cursor extension setup hit a problem (see above) — viper itself is fine"
 
 # --- Done -------------------------------------------------------------------
 echo

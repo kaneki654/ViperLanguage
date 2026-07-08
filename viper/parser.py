@@ -35,10 +35,12 @@ VIPER_GRAMMAR = r"""
                   | with_stmt
                   | async_stmt
 
-    import_stmt: "import" dotted_name ("," dotted_name)*        -> import_plain
+    import_stmt: "import" import_name ("," import_name)*        -> import_plain
                | "from" dotted_name "import" import_targets      -> import_from
+    import_name: dotted_name ("as" NAME)?
     import_targets: "*"                                          -> import_star
-                  | NAME ("," NAME)*
+                  | import_target ("," import_target)*
+    import_target: NAME ("as" NAME)?
     dotted_name: NAME ("." NAME)*
 
     // --- assignment / let / aug --------------------------------------------

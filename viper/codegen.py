@@ -64,7 +64,13 @@ class _Codegen:
 
     # -- imports -----------------------------------------------------------
     def _stmt_import_plain(self, node, indent):
-        names = [".".join(t.value for t in dn.children) for dn in node.children]
+        names = []
+        for imp in node.children:
+            dotted = ".".join(t.value for t in imp.children[0].children)
+            if len(imp.children) == 2:
+                names.append(f"{dotted} as {imp.children[1].value}")
+            else:
+                names.append(dotted)
         self.emit("import " + ", ".join(names), indent, node.meta.line)
 
     def _stmt_import_from(self, node, indent):
@@ -73,8 +79,13 @@ class _Codegen:
         if _rule(targets) == "import_star":
             self.emit(f"from {module} import *", indent, node.meta.line)
         else:
-            names = ", ".join(t.value for t in targets.children)
-            self.emit(f"from {module} import {names}", indent, node.meta.line)
+            names = []
+            for tgt in targets.children:
+                if len(tgt.children) == 2:
+                    names.append(f"{tgt.children[0].value} as {tgt.children[1].value}")
+                else:
+                    names.append(tgt.children[0].value)
+            self.emit("from " + module + " import " + ", ".join(names), indent, node.meta.line)
 
     # -- let / assign / aug -----------------------------------------------
     def _stmt_let_stmt(self, node, indent):

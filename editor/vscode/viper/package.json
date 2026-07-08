@@ -1,12 +1,12 @@
 {
     "name": "viper-lang",
     "displayName": "Viper Language",
-    "description": "Syntax highlighting and editing support for the Viper language (.vp). Works in VS Code and Cursor.",
-    "version": "1.0.0",
+    "description": "Viper language support for VS Code and Cursor: syntax highlighting, smart autocompletion, hover docs, signature help, and live error diagnostics via the Viper LSP.",
+    "version": "1.1.1",
     "publisher": "viper-lang",
     "license": "MIT",
     "engines": {
-        "vscode": "^1.75.0"
+        "vscode": "^1.82.0"
     },
     "categories": [
         "Programming Languages"
@@ -35,7 +35,21 @@
                 "scopeName": "source.viper",
                 "path": "./syntaxes/viper.tmLanguage.json"
             }
-        ]
+        ],
+        "configuration": {
+            "title": "Viper",
+            "properties": {
+                "viper.lspPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Path to the viper executable (leave empty to use 'viper' from PATH)."
+                }
+            }
+        }
     },
-    "icon": "icons/viper.png"
+    "icon": "icons/viper.png",
+    "main": "./out/extension.js",
+    "activationEvents": [
+        "onLanguage:viper"
+    ]
 }

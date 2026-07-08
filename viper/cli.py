@@ -1,5 +1,6 @@
 """The `viper` command-line interface."""
 import argparse
+import os
 import sys
 
 from . import __version__
@@ -8,7 +9,6 @@ from .runtime import run_source, run_repl_line, _fresh_namespace
 
 
 def run_file(path: str) -> int:
-    import os
     script_dir = os.path.dirname(os.path.abspath(path))
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
@@ -189,6 +189,108 @@ def repl() -> int:
         buffer = ""
 
 
+def doctor() -> int:
+    """Check the whole installation and say exactly what to fix."""
+    import json
+    import platform
+    import shutil
+
+    ok = True
+
+    def check(label: str, passed: bool, fix: str = "") -> None:
+        nonlocal ok
+        print(f"[{'OK  ' if passed else 'FAIL'}] {label}")
+        if not passed:
+            ok = False
+            if fix:
+                print(f"       fix: {fix}")
+
+    print("viper doctor — checking your installation")
+    print(f"       python: {sys.executable}")
+    print()
+    check(f"Python {platform.python_version()} (needs 3.10+)",
+          sys.version_info >= (3, 10),
+          "install Python 3.10+ from https://www.python.org/downloads/")
+    try:
+        import lark
+        check(f"lark {getattr(lark, '__version__', '?')} (parser)", True)
+    except ImportError:
+        check("lark (parser)", False, "pip install 'lark>=1.1.0'")
+    try:
+        import pygls
+        check(f"pygls {getattr(pygls, '__version__', '?')} (language server -> editor autocompletion)", True)
+    except ImportError:
+        check("pygls (language server -> editor autocompletion)", False,
+              'pip install "pygls>=2.1,<3"   (or just re-run install.ps1 / install.sh)')
+    exe = shutil.which("viper")
+    check(f"viper on PATH ({exe or 'NOT FOUND'})", exe is not None,
+          "re-run install.ps1 / install.sh, then open a NEW terminal")
+
+    home = os.path.expanduser("~")
+    for editor in (".vscode", ".cursor"):
+        ext_root = os.path.join(home, editor, "extensions")
+        if not os.path.isdir(os.path.join(home, editor)):
+            continue  # this editor isn't installed — skip silently
+        found = None
+        if os.path.isdir(ext_root):
+            for d in sorted(os.listdir(ext_root)):
+                if d.startswith("viper-lang.viper"):
+                    found = d
+        if not found:
+            check(f"{editor[1:]} extension", False,
+                  "re-run install.ps1 / install.sh (or: python editor/vscode/register_extension.py)")
+            continue
+        version = "?"
+        try:
+            with open(os.path.join(ext_root, found, "package.json"), encoding="utf-8") as f:
+                version = json.load(f).get("version", "?")
+        except OSError:
+            pass
+        has_client = os.path.isfile(os.path.join(ext_root, found, "out", "extension.js"))
+        check(f"{editor[1:]} extension v{version} (LSP client bundled: {'yes' if has_client else 'NO'})",
+              has_client,
+              "extension is outdated — re-run install.ps1 / install.sh, then restart the editor")
+
+        # A folder in extensions/ is NOT enough: modern VS Code/Cursor only
+        # load extensions listed in extensions.json and absent from .obsolete.
+        # An unregistered copy fails silently — the #1 cause of "autocompletion
+        # suddenly stopped working".
+        registered = True  # editors without a registry file scan folders directly
+        reg_file = os.path.join(ext_root, "extensions.json")
+        if os.path.isfile(reg_file):
+            try:
+                with open(reg_file, encoding="utf-8") as f:
+                    entries = json.load(f)
+                registered = any(
+                    isinstance(e, dict) and (
+                        e.get("relativeLocation") == found
+                        or str((e.get("location") or {}).get("path", ""))
+                        .rstrip("/").endswith("/" + found)
+                    )
+                    for e in entries
+                )
+            except (OSError, ValueError):
+                registered = False
+        try:
+            with open(os.path.join(ext_root, ".obsolete"), encoding="utf-8") as f:
+                if json.load(f).get(found):
+                    registered = False  # editor flagged the folder for deletion
+        except (OSError, ValueError):
+            pass
+        check(f"{editor[1:]} extension registered in extensions.json (editor actually loads it)",
+              registered,
+              "run: python editor/vscode/register_extension.py  (or re-run install.ps1 / install.sh), "
+              "then fully quit and reopen the editor")
+
+    print()
+    if ok:
+        print("everything looks good. If the editor still misbehaves: Reload Window")
+        print("(Ctrl+Shift+P > Reload Window), then check Output > Viper Language Server.")
+    else:
+        print("fix the FAIL lines above, then run 'viper doctor' again.")
+    return 0 if ok else 1
+
+
 def _start_lsp() -> int:
     try:
         from . import lsp
@@ -228,6 +330,8 @@ def main(argv=None) -> int:
 
     sub.add_parser("topics", help="list the available help topics")
 
+    sub.add_parser("doctor", help="diagnose installation / editor-integration problems")
+
     # Shebang / direct-run support: `viper script.vp` == `viper run script.vp`
     raw = sys.argv[1:] if argv is None else list(argv)
     if raw and raw[0].endswith(".vp"):
@@ -243,6 +347,8 @@ def main(argv=None) -> int:
         return build_file(args.file, args.output)
     if args.command == "fmt":
         return fmt_files(args.files, check=args.check)
+    if args.command == "doctor":
+        return doctor()
     if args.command == "help":
         if args.topic in (None, "topics"):
             if args.topic == "topics":
