@@ -234,6 +234,8 @@ def _validate(ls: LanguageServer, uri: str) -> None:
                 start = max(issue.column - 1, 0)
                 end = len(lines[ln]) if 0 <= ln < len(lines) else start + 1
                 msg = issue.message + (f" ({issue.hint})" if issue.hint else "")
+                sev = (lsp.DiagnosticSeverity.Warning if issue.severity == "warning"
+                       else lsp.DiagnosticSeverity.Error)
                 diagnostics.append(
                     lsp.Diagnostic(
                         range=lsp.Range(
@@ -241,7 +243,7 @@ def _validate(ls: LanguageServer, uri: str) -> None:
                             end=lsp.Position(line=ln, character=max(end, start + 1)),
                         ),
                         message=msg,
-                        severity=lsp.DiagnosticSeverity.Error,
+                        severity=sev,
                         source="viper",
                     )
                 )

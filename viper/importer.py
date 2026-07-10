@@ -23,7 +23,7 @@ class ViperLoader(importlib.abc.Loader):
         from .runtime import _PRELUDE
         from . import sourcemap
 
-        with open(self.path, "r", encoding="utf-8") as f:
+        with open(self.path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
             source = f.read()
         py_source, line_map = transpile(source, self.path)
         sourcemap.register(self.path, source, line_map)

@@ -30,7 +30,7 @@ def format_file(path: str, check: bool = False) -> bool:
 
     check=True: report without writing (exit code for CI).
     """
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
         original = f.read()
 
     formatted = format_source(original)

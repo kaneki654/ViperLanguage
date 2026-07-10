@@ -135,6 +135,14 @@ TOPICS = {
         "Raise an exception, optionally chaining a cause with 'from'.",
         'try:\n    int("nope")\nexcept ValueError as e:\n    raise RuntimeError("bad input") from e',
     ),
+    "lint": (
+        "'viper lint file.vp' reports problems flake8-style: type errors "
+        "(let x: int = \"no\") and lint warnings (unused imports). Errors exit "
+        "1; warnings don't. The same diagnostics show live in the editor. "
+        "Python needs an external tool for this — Viper has it built in.",
+        "viper lint script.vp\n"
+        "# script.vp:3:1: warning: 'os' is imported but never used",
+    ),
     "ffi": (
         "Call into C libraries with clib() — built on ctypes, no compiler "
         "needed. 'lib.Name(args)' is the quick path (int in/out, str auto-"

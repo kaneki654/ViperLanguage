@@ -54,12 +54,15 @@ CONCRETE = set(ACCEPTS) | {"None"}
 
 
 class TypeIssue:
-    """A single type error: 1-based line/column and a message + hint."""
-    def __init__(self, line: int, column: int, message: str, hint: str = ""):
+    """A single diagnostic: 1-based line/column, message, hint, and severity.
+    severity is 'error' (blocks run/build) or 'warning' (lint, editor-only)."""
+    def __init__(self, line: int, column: int, message: str, hint: str = "",
+                 severity: str = "error"):
         self.line = line
         self.column = column
         self.message = message
         self.hint = hint
+        self.severity = severity
 
 
 def _stdlib_returns() -> dict:
@@ -270,6 +273,46 @@ class _Checker:
                 return inner.children[0].value
         return None
 
+    # -- lint: unused imports (warnings, never block a build) ---------------
+    def lint_unused_imports(self, tree):
+        """Warn on imports that are never referenced. Uses a whole-source word
+        scan so a name used only inside an f-string still counts as used —
+        false negatives (missing a truly-dead import) are fine; flagging a
+        used import is not."""
+        import re
+        lines = self.source.splitlines()
+        bindings = []   # (bound_name, line)
+
+        def walk(node):
+            if not isinstance(node, Tree):
+                return
+            r = _rule(node)
+            if r == "import_plain":
+                for imp in node.children:
+                    dotted = imp.children[0]
+                    top = dotted.children[0].value
+                    alias = imp.children[1].value if len(imp.children) == 2 else top
+                    bindings.append((alias, node.meta.line))
+            elif r == "import_from":
+                targets = node.children[1]
+                if _rule(targets) != "import_star":     # can't track `import *`
+                    for tgt in targets.children:
+                        orig = tgt.children[0].value
+                        bind = tgt.children[1].value if len(tgt.children) == 2 else orig
+                        bindings.append((bind, node.meta.line))
+            for c in node.children:
+                walk(c)
+
+        walk(tree)
+        for name, line in bindings:
+            pat = re.compile(r"\b" + re.escape(name) + r"\b")
+            total = len(pat.findall(self.source))
+            in_import = len(pat.findall(lines[line - 1])) if 0 <= line - 1 < len(lines) else 1
+            if total <= in_import:      # appears only in its own import line
+                self.issues.append(TypeIssue(
+                    line, 1, f"'{name}' is imported but never used",
+                    hint="remove the unused import", severity="warning"))
+
     def _fn_parts(self, children):
         ch = [c for c in children
               if not (isinstance(c, Tree) and _rule(c) == "decorator")]
@@ -412,8 +455,9 @@ def check_tree(tree, source: str) -> list[TypeIssue]:
     """All type issues in a parsed Viper program (empty list if clean)."""
     c = _Checker(source)
     c.collect(tree)              # fn returns, classes, const declarations
-    c.scan_reassign(tree)        # const immutability
-    c.walk(tree, env={}, ret=None)   # annotation / return type checks
+    c.scan_reassign(tree)        # const immutability   (errors)
+    c.walk(tree, env={}, ret=None)   # annotation / return type checks (errors)
+    c.lint_unused_imports(tree)  # unused imports       (warnings)
     c.issues.sort(key=lambda i: (i.line, i.column))
     return c.issues
 
@@ -429,11 +473,11 @@ def check_source(source: str) -> list[TypeIssue]:
 
 
 def raise_first(tree, source: str, filename: str) -> None:
-    """Raise a ViperError for the first type issue, formatted like a parse
-    error (caret block). No-op if the program type-checks."""
-    issues = check_tree(tree, source)
-    if not issues:
+    """Raise a ViperError for the first *error* (not warning), formatted like a
+    parse error (caret block). Warnings never block run/build. No-op if clean."""
+    errors = [i for i in check_tree(tree, source) if i.severity == "error"]
+    if not errors:
         return
-    first = issues[0]
+    first = errors[0]
     raise ViperError(_caret_block(source, first.line, first.column, filename,
                                   first.message, first.hint or None))

@@ -519,7 +519,7 @@ def _vp_module_info(path: str) -> DocumentInfo | None:
     if hit is not None and hit[0] == mtime:
         return hit[1]
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
             source = f.read()
     except OSError:
         return None

@@ -49,7 +49,21 @@ glue — where you want to move fast with a guardrail or two.
 
 ## Changelog
 
-### BETA-1.6.0b1 *(current)* — call into C
+### BETA-1.7.0b1 *(current)* — built-in linter
+
+Viper now ships a linter — the kind of thing Python makes you install `flake8`
+for. It rides on the same static analysis as the type checker.
+
+- **Unused-import warnings** — `import os` you never use is flagged. The scan is
+  whole-source and textual, so a name used only inside an f-string still counts
+  as used: it never cries wolf on a real use.
+- **`viper lint file.vp`** — reports type errors *and* lint warnings, flake8-style
+  (`file.vp:3:1: warning: 'os' is imported but never used`). Errors exit 1;
+  warnings don't. Wire it into CI.
+- **Live in the editor** — warnings show as yellow squiggles, errors as red, via
+  the same LSP. Warnings never block `run`/`build`. +11 tests (202 → 213).
+
+### BETA-1.6.0b1 — call into C
 
 Viper can now **drop down to C** ergonomically, when you need the metal (a fast
 native crypto routine, a raw syscall, an existing C library). Built on `ctypes`,
@@ -339,6 +353,7 @@ echo 'print(now())' | viper -    # run Viper from stdin (pipelines)
 viper repl                # interactive prompt
 viper build hello.vp      # transpile to a standalone hello.py (-o out.py to choose)
 viper fmt src.vp          # format .vp files in place (--check for CI)
+viper lint src.vp         # report type errors + unused-import warnings
 viper doctor              # diagnose installation / editor problems
 viper help                # 5-minute interactive tutorial
 viper help match          # quick reference for a topic

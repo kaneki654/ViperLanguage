@@ -13,7 +13,7 @@ def run_file(path: str) -> int:
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
             source = f.read()
     except OSError as e:
         print(f"error: cannot read {path!r}: {e}", file=sys.stderr)
@@ -25,6 +25,28 @@ def run_file(path: str) -> int:
         print(str(e), file=sys.stderr)
         return 1
     return 0
+
+
+def lint_file(path: str) -> int:
+    """Report type errors and lint warnings for a .vp file, flake8-style.
+    Exit 1 if there are any errors, 0 otherwise (warnings don't fail)."""
+    from . import typecheck
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
+            source = f.read()
+    except OSError as e:
+        print(f"error: cannot read {path!r}: {e}", file=sys.stderr)
+        return 1
+    issues = typecheck.check_source(source)
+    errors = 0
+    for i in sorted(issues, key=lambda i: (i.line, i.column)):
+        tag = "error" if i.severity == "error" else "warning"
+        errors += i.severity == "error"
+        hint = f"  ({i.hint})" if i.hint else ""
+        print(f"{path}:{i.line}:{i.column}: {tag}: {i.message}{hint}")
+    if not issues:
+        print(f"{path}: clean")
+    return 1 if errors else 0
 
 
 def run_snippet(source: str, filename: str = "<viper -c>") -> int:
@@ -55,7 +77,7 @@ def _build_prelude() -> str:
 def build_file(path: str, output: str | None = None) -> int:
     from .codegen import transpile
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8-sig") as f:   # tolerate a BOM
             source = f.read()
     except OSError as e:
         print(f"error: cannot read {path!r}: {e}", file=sys.stderr)
@@ -343,6 +365,9 @@ def main(argv=None) -> int:
     fmt_p.add_argument("--check", action="store_true",
                        help="don't write; exit 1 if anything would change")
 
+    lint_p = sub.add_parser("lint", help="report type errors and lint warnings for a .vp file")
+    lint_p.add_argument("file")
+
     help_p = sub.add_parser("help", help="interactive tutorial, or reference for a topic")
     help_p.add_argument("topic", nargs="?", help="a topic, e.g. match, pipe, fn")
 
@@ -382,6 +407,8 @@ def main(argv=None) -> int:
         return build_file(args.file, args.output)
     if args.command == "fmt":
         return fmt_files(args.files, check=args.check)
+    if args.command == "lint":
+        return lint_file(args.file)
     if args.command == "doctor":
         return doctor()
     if args.command == "help":
