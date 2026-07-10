@@ -49,7 +49,28 @@ glue — where you want to move fast with a guardrail or two.
 
 ## Changelog
 
-### BETA-1.5.0b1 *(current)* — const + more batteries
+### BETA-1.6.0b1 *(current)* — call into C
+
+Viper can now **drop down to C** ergonomically, when you need the metal (a fast
+native crypto routine, a raw syscall, an existing C library). Built on `ctypes`,
+so it needs no compiler and no dependency — Viper inherits Python's C interop.
+
+- **`clib(name)`** loads a C shared library (`.dll`/`.so`/`.dylib` or a system
+  name like `"msvcrt"`). Two ways to call:
+  - quick: `lib.SomeFunc(a, b)` — int in/out, Python `str` auto-encoded;
+  - typed: `f = lib.func("name", "double", ["int"])` then `f(3)` — declared
+    signature with friendly type names (`int str double ptr size_t` …), `str`
+    args auto-encoded and `str` returns decoded.
+- **`abi="win"`** for Win32 stdcall APIs: `clib("kernel32", abi="win").GetTickCount()`.
+- New [examples/ffi.vp](examples/ffi.vp) (cross-platform), `viper help ffi`, +8 tests.
+
+**Honest scope:** this is *call into C*, not *become C*. You get C libraries;
+you don't get manual memory, pointers, or native speed for Viper code itself —
+that's still Python's runtime underneath. It's the right tool when the metal
+lives in a C library you can call, which covers most "I need C for this" cases
+in security and systems glue.
+
+### BETA-1.5.0b1 — const + more batteries
 
 **`const` — real, compile-time-enforced immutability** (something Python can't
 do):
@@ -313,6 +334,8 @@ The script tries `pipx` first (clean, isolated, global). Falls back to a project
 ```sh
 viper run hello.vp        # run a .vp file
 viper hello.vp            # same thing (enables #!/usr/bin/env viper shebangs)
+viper -c 'print(sha256("hi"))'   # run a one-liner
+echo 'print(now())' | viper -    # run Viper from stdin (pipelines)
 viper repl                # interactive prompt
 viper build hello.vp      # transpile to a standalone hello.py (-o out.py to choose)
 viper fmt src.vp          # format .vp files in place (--check for CI)
@@ -346,9 +369,27 @@ x *= 2
 let (a, b) = (1, 2)          # tuple unpacking
 let head, *tail = [1, 2, 3]  # starred catch-all
 a = b = 0                    # chained assignment
+
+const PI = 3.14159           # immutable — reassigning PI is a compile error
 ```
 
-`let` introduces a name. Reassign later with plain `=` or augmented operators. Number literals can be decimal, hex (`0xff`), octal (`0o17`), binary (`0b1010`), or use `_` separators (`1_000_000`). Strings use single or double quotes.
+`let` introduces a name. Reassign later with plain `=` or augmented operators. Number literals can be decimal, hex (`0xff`), octal (`0o17`), binary (`0b1010`), or use `_` separators (`1_000_000`). Strings use single or double quotes, and support `b"…"` (bytes) and `r"…"` (raw) prefixes.
+
+### Constants and checked types
+
+`const` binds a name that can never be reassigned — a compile-time guarantee Python doesn't offer. Type annotations are checked at transpile time, so a mismatch is an error, not a silent lie:
+
+```
+const KEY: str = "s3cret"
+# KEY = "other"          # error: cannot reassign a const
+const cfg = {}
+cfg["a"] = 1             # fine — const freezes the name, not the object
+
+let n: int = 5           # ok
+# let n: int = "five"    # error: 'n' is annotated 'int' but the value is a str
+```
+
+Checking is conservative: Viper only flags a mismatch when the value's type is *definitely* known (literals, typed variables, and calls whose return type it knows) and *definitely* incompatible — it never cries wolf. Errors show live in the editor and block `run`/`build`.
 
 ### Functions
 
@@ -465,16 +506,48 @@ print(0xff & 0x0f)       # 15
 print(1 << 4)            # 16
 ```
 
-### Built-in prelude
+### Built-in prelude (batteries included)
 
-Available in every Viper program — no import needed:
+A curated standard library is in scope in every Viper program — no import needed. All of it is backed by the Python standard library (no third-party deps), and each helper shows its signature and docs on hover. `viper help std` lists everything; the highlights:
 
 ```
-pp({"name": "viper", "items": [1, 2, 3]})   # pretty-print
-write_file("out.txt", "hello")
-print(read_file("out.txt"))
-print(clamp(10, 0, 5))                       # 5
+# hashing / encoding / crypto
+print(sha256("hunter2"))
+print(b64("data") |> unb64 |> bytes.decode(_))
+print(hmac256("key", "message"))
+print(to_hex(xor("secret", "k")))            # repeating-key XOR
+
+# http / shell / json / files
+let body = http_get("https://example.com")
+let out  = sh_out("git status")
+let data = read_json("config.json")
+print(json_get(data, "server.port", 8080))   # safe nested access
+
+# web
+let u = url_parse("https://ex.com:8443/p?a=1")
+print(u["host"], u["port"])
+
+# classic
+pp({"name": "viper", "items": [1, 2, 3]})     # pretty-print
+print(clamp(10, 0, 5))                        # 5
 ```
+
+Groups: **hashing** (`sha256` `md5` `hmac256` `file_sha256` …), **encoding** (`b64` `to_hex` `url_quote` …), **randomness** (`rand_token` `uuid4` …), **http** (`http_get` `http_post` `download` …), **shell** (`sh` `sh_out` `which`), **json/files** (`json_parse` `read_json` `read_lines` `ls` `env` …), **data** (`hexdump` `now` `port_open` …), **crypto/web** (`xor` `url_parse` `qs_parse` `json_get`).
+
+### Calling into C
+
+When you need the metal — a native crypto routine, a raw syscall, an existing C library — `clib()` calls into C via `ctypes` (no compiler, no dependency):
+
+```
+const libc = clib("msvcrt")                       # or a .so / .dll / .dylib path
+const strlen = libc.func("strlen", "int", ["str"])  # declared signature
+print(strlen("viper"))                            # -> 5, str auto-encoded
+
+const k = clib("kernel32", abi="win")             # Win32 stdcall APIs
+print(k.GetTickCount())                           # quick path: int in/out
+```
+
+This is *call into C*, not *become C*: you get C libraries, not manual memory or native speed for Viper itself. See `viper help ffi`.
 
 ### Footgun guards
 

@@ -339,6 +339,87 @@ def json_get(obj, path, default=None):
     return cur
 
 
+# -------------------------------------------------------- native / C FFI
+# Drop down to C when you need the metal (fast crypto, a native lib, a raw
+# syscall). Built on ctypes, so it needs no compiler and no dependency —
+# Viper inherits Python's C interop. This is "call into C", not "become C":
+# you get C libraries, not manual memory or native speed for Viper itself.
+
+def _cffi_type(name):
+    """Map a friendly type name (used by clib) to a ctypes type; None = void."""
+    import ctypes
+    table = {
+        "void": None, "bool": ctypes.c_bool, "char": ctypes.c_char,
+        "int": ctypes.c_int, "uint": ctypes.c_uint,
+        "long": ctypes.c_long, "ulong": ctypes.c_ulong,
+        "longlong": ctypes.c_longlong, "ulonglong": ctypes.c_ulonglong,
+        "short": ctypes.c_short, "ushort": ctypes.c_ushort,
+        "byte": ctypes.c_byte, "ubyte": ctypes.c_ubyte,
+        "size_t": ctypes.c_size_t, "ssize_t": ctypes.c_ssize_t,
+        "float": ctypes.c_float, "double": ctypes.c_double,
+        "str": ctypes.c_char_p, "bytes": ctypes.c_char_p,
+        "wstr": ctypes.c_wchar_p, "ptr": ctypes.c_void_p,
+    }
+    if name not in table:
+        raise ValueError(f"unknown C type {name!r}; known: {', '.join(sorted(table))}")
+    return table[name]
+
+
+class CLib:
+    """A loaded C library. Call functions two ways:
+
+        lib.SomeFunc(a, b)                       # quick: int in/out, str->bytes
+        f = lib.func("name", "double", ["int"])  # typed: declared signature
+        f(3)
+
+    Types are friendly names: void bool int uint long ulong short byte
+    float double size_t str (char*, auto-encoded) wstr (wchar*) ptr bytes.
+    """
+    def __init__(self, lib):
+        self._lib = lib
+
+    def func(self, name, restype="int", argtypes=None):
+        """Bind a C function with a declared signature; returns a callable
+        that converts str<->bytes for char* args and decodes a 'str' result."""
+        try:
+            fn = getattr(self._lib, name)
+        except AttributeError:
+            raise AttributeError(f"C function {name!r} not found in this library") from None
+        argnames = list(argtypes or [])
+        fn.restype = _cffi_type(restype)
+        fn.argtypes = [_cffi_type(a) for a in argnames]
+
+        def call(*args):
+            conv = [a.encode("utf-8") if (t in ("str", "bytes") and isinstance(a, str))
+                    else a for a, t in zip(args, argnames)]
+            result = fn(*conv)
+            if restype == "str" and isinstance(result, bytes):
+                return result.decode("utf-8", "replace")
+            return result
+        return call
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        fn = getattr(self._lib, name)
+
+        def call(*args):
+            conv = [a.encode("utf-8") if isinstance(a, str) else a for a in args]
+            return fn(*conv)
+        return call
+
+
+def clib(name, abi="c"):
+    """Load a C shared library (.dll/.so/.dylib or a system name like 'msvcrt')
+    so you can call its functions. Use abi='win' for Win32 stdcall APIs
+    (kernel32, user32, ...). Returns a CLib — see CLib for how to call."""
+    import ctypes
+    import sys
+    if abi == "win" and sys.platform == "win32":
+        return CLib(ctypes.WinDLL(name))
+    return CLib(ctypes.CDLL(name))
+
+
 # ---------------------------------------------------- classic prelude (kept)
 
 def pp(*objs) -> None:
@@ -368,7 +449,7 @@ def clamp(x, lo, hi):
 # ------------------------------------------------------------------ registry
 
 # Support helpers inlined (in order) ahead of the public ones by `viper build`.
-PRELUDE_SUPPORT = [_as_bytes]
+PRELUDE_SUPPORT = [_as_bytes, _cffi_type, CLib]
 
 # Everything a Viper program gets for free, name -> callable.
 PRELUDE = {
@@ -390,6 +471,8 @@ PRELUDE = {
         hexdump, sleep, now, port_open,
         # crypto / web
         xor, url_parse, qs_parse, qs_build, json_get,
+        # native / C FFI
+        clib,
         # classic prelude
         pp, read_file, write_file, clamp,
     )

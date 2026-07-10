@@ -26,7 +26,7 @@ syn keyword viperBuiltin http_get http_post http_status download
 syn keyword viperBuiltin sh sh_out which
 syn keyword viperBuiltin json_parse json_str read_json write_json read_lines ls exists env
 syn keyword viperBuiltin hexdump sleep now port_open
-syn keyword viperBuiltin xor url_parse qs_parse qs_build json_get
+syn keyword viperBuiltin xor url_parse qs_parse qs_build json_get clib
 
 syn match viperNumber "\<\d\+\(\.\d\+\)\?\>"
 syn region viperString start=+"+ skip=+\\"+ end=+"+

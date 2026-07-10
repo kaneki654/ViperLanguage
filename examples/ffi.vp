@@ -1,0 +1,20 @@
+# ffi.vp — call into C from Viper, cross-platform, no compiler needed.
+# Viper inherits Python's ctypes, so clib() loads a real C library and you
+# call its functions directly. This is "call into C", not "become C".
+import sys, ctypes.util
+
+# Load the C standard library on any OS. The name never changes -> const.
+const LIBC = clib("msvcrt") if sys.platform == "win32" else clib(ctypes.util.find_library("c"))
+
+# Bind functions with declared signatures. Types are friendly names; a Python
+# str is auto-encoded for char* args, and a 'str' return is decoded for you.
+const strlen = LIBC.func("strlen", "int", ["str"])
+const cpow = LIBC.func("pow", "double", ["double", "double"])
+
+print("C strlen('viper') =", strlen("viper"))
+print("C pow(2, 10)      =", cpow(2.0, 10.0))
+
+# Windows-only: call a Win32 API (stdcall) via the quick attribute path.
+if sys.platform == "win32":
+    const KERNEL32 = clib("kernel32", abi="win")
+    print("GetTickCount()    =", KERNEL32.GetTickCount(), "ms since boot")

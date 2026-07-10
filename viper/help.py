@@ -116,6 +116,7 @@ TOPICS = {
         "  json/fs   json_parse json_str read_json write_json read_lines ls exists env\n"
         "  data      hexdump sleep now port_open\n"
         "  crypto/web  xor url_parse qs_parse qs_build json_get\n"
+        "  native    clib (call into C libraries — see 'viper help ffi')\n"
         "  classic   pp read_file write_file clamp\n"
         "See any one with hover in your editor, or 'viper help <name>'.",
         'let body = http_get("https://example.com")\n'
@@ -134,6 +135,17 @@ TOPICS = {
         "Raise an exception, optionally chaining a cause with 'from'.",
         'try:\n    int("nope")\nexcept ValueError as e:\n    raise RuntimeError("bad input") from e',
     ),
+    "ffi": (
+        "Call into C libraries with clib() — built on ctypes, no compiler "
+        "needed. 'lib.Name(args)' is the quick path (int in/out, str auto-"
+        "encoded); 'lib.func(name, restype, [argtypes])' declares a typed "
+        "signature. Types: void bool int uint long short byte float double "
+        "size_t str (char*) wstr ptr. Use abi='win' for Win32 APIs. This is "
+        "'call into C', not 'become C' — you get C libraries, not native speed.",
+        'const libc = clib("msvcrt")\n'
+        'const strlen = libc.func("strlen", "int", ["str"])\n'
+        'print(strlen("viper"))   # -> 5',
+    ),
 }
 
 ALIASES = {
@@ -146,6 +158,7 @@ ALIASES = {
     "type": "types",
     "comp": "comprehension", "genexp": "comprehension",
     "stdlib": "prelude", "std": "prelude", "batteries": "prelude",
+    "clib": "ffi", "c": "ffi", "ctypes": "ffi", "native": "ffi",
 }
 
 
