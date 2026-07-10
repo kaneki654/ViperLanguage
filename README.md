@@ -699,7 +699,7 @@ The v1 formatter is deliberately conservative: it strips trailing whitespace, co
 
 ## Editor Support
 
-**VS Code & Cursor:** run `install.ps1` (Windows) or copy `editor/vscode/viper/` into `~/.vscode/extensions/` / `~/.cursor/extensions/` — syntax highlighting **plus Python-grade smarts via the bundled LSP client**: context-aware autocompletion with signatures and docs, dot-completion for Python *and* Viper modules, signature help, hover docs, and live error squiggles. Needs `pip install \"viper-lang[lsp]\"` (the installers do this for you). Details in `editor/vscode/README.md`.
+**VS Code, Cursor, Windsurf, Antigravity, VSCodium:** run `install.ps1` (Windows) / `install.sh` (macOS, Linux), or `python editor/vscode/register_extension.py` directly — it detects every VS Code-family editor on the machine and installs + registers the extension in each. You get syntax highlighting **plus Python-grade smarts via the bundled LSP client**: context-aware autocompletion with signatures and docs, dot-completion for Python *and* Viper modules, signature help, hover docs, and live error squiggles. Needs `pip install \"viper-lang[lsp]\"` (the installers do this for you). Details in `editor/vscode/README.md`.
 
 **Neovim ≥ 0.8:** after running `install.sh`, open a `.vp` file — syntax highlighting and LSP autocomplete + live errors start automatically.
 

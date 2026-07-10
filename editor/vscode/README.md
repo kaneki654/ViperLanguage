@@ -1,8 +1,9 @@
-# Viper for VS Code and Cursor
+# Viper for VS Code, Cursor, Windsurf, Antigravity & VSCodium
 
 Full language support for `.vp` files: syntax highlighting **and** Python-grade
-editor intelligence via the bundled LSP client (Cursor is a VS Code fork, so
-the same extension works in both).
+editor intelligence via the bundled LSP client. Cursor, Windsurf, Antigravity,
+and VSCodium are VS Code forks, so the same extension works in all of them —
+the installer detects and registers into every one it finds.
 
 ## Features
 
@@ -65,11 +66,18 @@ python editor/vscode/register_extension.py
 ```
 
 then fully quit and reopen the editor. The script copies the extension into
-`~/.vscode/extensions/` and `~/.cursor/extensions/` **and registers it in each
-editor's `extensions.json`**. Just copying the folder there by hand is not
-enough — modern VS Code and Cursor silently ignore extension folders that
-aren't listed in `extensions.json`, so you'd get no completions and no
-diagnostics with no error anywhere.
+each editor's extensions directory (`~/.vscode`, `~/.vscode-insiders`,
+`~/.cursor`, `~/.windsurf`, `~/.antigravity-ide`, `~/.vscodium`) **and
+registers it in each editor's `extensions.json`**. Just copying the folder
+there by hand is not enough — modern VS Code and its forks silently ignore
+extension folders that aren't listed in `extensions.json`, so you'd get no
+completions and no diagnostics with no error anywhere.
+
+## Install (from a .vsix)
+
+Package the extension (`npx @vscode/vsce package` inside `editor/vscode/viper/`)
+or grab `viper-lang-<version>.vsix` from a GitHub release, then in any VS
+Code-family editor: **Extensions panel → `...` menu → Install from VSIX**.
 
 ## Troubleshooting
 

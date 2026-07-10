@@ -5,11 +5,27 @@
     "version": "1.1.1",
     "publisher": "viper-lang",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/kaneki654/ViperLanguage"
+    },
+    "bugs": {
+        "url": "https://github.com/kaneki654/ViperLanguage/issues"
+    },
+    "homepage": "https://github.com/kaneki654/ViperLanguage#readme",
+    "keywords": [
+        "viper",
+        "vp",
+        "transpiler",
+        "language server",
+        "lsp"
+    ],
     "engines": {
         "vscode": "^1.82.0"
     },
     "categories": [
-        "Programming Languages"
+        "Programming Languages",
+        "Linters"
     ],
     "contributes": {
         "languages": [

@@ -15,9 +15,9 @@ EXT_VERSION = json.loads(
 EXT_FOLDER = f"viper-lang.viper-lang-{EXT_VERSION}"
 
 
-def make_home(tmp_path, extensions_json=None, obsolete=None):
+def make_home(tmp_path, extensions_json=None, obsolete=None, editor=".cursor"):
     home = tmp_path / "home"
-    ext_root = home / ".cursor" / "extensions"
+    ext_root = home / editor / "extensions"
     ext_root.mkdir(parents=True)
     if extensions_json is not None:
         (ext_root / "extensions.json").write_text(extensions_json, encoding="utf-8")
@@ -50,6 +50,17 @@ def test_fresh_install_copies_and_registers(tmp_path):
     assert entry["version"] == EXT_VERSION
     assert entry["relativeLocation"] == EXT_FOLDER
     assert entry["location"]["path"].endswith("/" + EXT_FOLDER)
+
+
+def test_installs_into_antigravity(tmp_path):
+    # Antigravity (like Windsurf/VSCodium) is a VS Code fork with the same
+    # <home>/<dir>/extensions layout — the installer must cover it too.
+    home, ext_root = make_home(tmp_path, editor=".antigravity-ide")
+    r = run_script(home)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (ext_root / EXT_FOLDER / "out" / "extension.js").is_file()
+    (entry,) = viper_entries(ext_root)
+    assert entry["version"] == EXT_VERSION
 
 
 def test_replaces_stale_entry_and_cleans_obsolete(tmp_path):

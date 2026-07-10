@@ -267,7 +267,9 @@ def doctor() -> int:
           "re-run install.ps1 / install.sh, then open a NEW terminal")
 
     home = os.path.expanduser("~")
-    for editor in (".vscode", ".cursor"):
+    # keep in sync with EDITOR_DIRS in editor/vscode/register_extension.py
+    for editor in (".vscode", ".vscode-insiders", ".cursor", ".windsurf",
+                   ".antigravity-ide", ".vscodium"):
         ext_root = os.path.join(home, editor, "extensions")
         if not os.path.isdir(os.path.join(home, editor)):
             continue  # this editor isn't installed — skip silently

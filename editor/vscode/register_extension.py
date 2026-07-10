@@ -1,7 +1,9 @@
-"""Install (copy + register) the Viper extension into VS Code and Cursor.
+"""Install (copy + register) the Viper extension into every VS Code-family
+editor on this machine: VS Code (incl. Insiders), Cursor, Windsurf,
+Antigravity, and VSCodium.
 
-Modern VS Code and Cursor no longer load extension folders just because they
-sit in ~/.vscode/extensions — every extension must also be listed in that
+Modern VS Code and its forks no longer load extension folders just because
+they sit in ~/.vscode/extensions — every extension must also be listed in that
 folder's extensions.json registry, and must not be flagged in the .obsolete
 file. Copying the folder alone (what older installers did) leaves the editor
 silently ignoring it, which kills autocompletion, hover, and diagnostics.
@@ -23,7 +25,10 @@ import sys
 import time
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "viper")
-EDITOR_DIRS = (".vscode", ".cursor")
+# every VS Code-family editor keeps the same <home>/<dir>/extensions layout;
+# keep in sync with the doctor's editor list in viper/cli.py
+EDITOR_DIRS = (".vscode", ".vscode-insiders", ".cursor", ".windsurf",
+               ".antigravity-ide", ".vscodium")
 
 
 def _location_path(path: str) -> str:
@@ -131,7 +136,8 @@ def main() -> int:
         print("restart the editor to load the extension "
               "(fully quit and reopen — a plain Reload Window can miss registry changes).")
     elif ok:
-        print("no VS Code or Cursor installation found — nothing to do.")
+        print("no VS Code-family editor found (VS Code, Cursor, Windsurf, "
+              "Antigravity, VSCodium) — nothing to do.")
     return 0 if ok else 1
 
 
