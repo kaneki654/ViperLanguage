@@ -201,15 +201,17 @@ def document_symbol(ls: LanguageServer, params: lsp.DocumentSymbolParams) -> lis
 
 def _validate(ls: LanguageServer, uri: str) -> None:
     doc = ls.workspace.get_text_document(uri)
+    source = doc.source
+    lines = source.splitlines()
     diagnostics: list[lsp.Diagnostic] = []
     try:
         # one parse validates AND fills the analysis caches, so the completion
         # request that follows the keystroke is a cache hit
-        err = analysis.parse_error(doc.source, cache_key=uri)
+        err = analysis.parse_error(source, cache_key=uri)
     except Exception:
         err = None  # never crash the server on an exotic buffer
     if err is not None:
-        last_line = max(len(doc.source.splitlines()) - 1, 0)
+        last_line = max(len(lines) - 1, 0)
         line = min(max((getattr(err, "line", 1) or 1) - 1, 0), last_line)
         col = max((getattr(err, "column", 1) or 1) - 1, 0)
         diagnostics.append(
@@ -223,6 +225,28 @@ def _validate(ls: LanguageServer, uri: str) -> None:
                 source="viper",
             )
         )
+    else:
+        # parse is clean — now surface type errors (let x: int = "no") live
+        try:
+            from . import typecheck
+            for issue in typecheck.check_source(source):
+                ln = min(max(issue.line - 1, 0), max(len(lines) - 1, 0))
+                start = max(issue.column - 1, 0)
+                end = len(lines[ln]) if 0 <= ln < len(lines) else start + 1
+                msg = issue.message + (f" ({issue.hint})" if issue.hint else "")
+                diagnostics.append(
+                    lsp.Diagnostic(
+                        range=lsp.Range(
+                            start=lsp.Position(line=ln, character=start),
+                            end=lsp.Position(line=ln, character=max(end, start + 1)),
+                        ),
+                        message=msg,
+                        severity=lsp.DiagnosticSeverity.Error,
+                        source="viper",
+                    )
+                )
+        except Exception:
+            pass  # a checker bug must never break the editor
     # Always publish: an empty list clears stale errors after a fix.
     ls.text_document_publish_diagnostics(
         lsp.PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics)

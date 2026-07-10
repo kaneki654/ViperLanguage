@@ -5,8 +5,15 @@ TOPICS = {
     "let": (
         "Bind a value to a name. Use 'let' the first time; reassign with '='. "
         "Supports tuple and starred unpacking: 'let (a, b) = pair', "
-        "'let a, *rest = xs'.",
+        "'let a, *rest = xs'. For a binding that must never change, use 'const'.",
         'let x = 10\nlet name: str = "Viper"\nlet a, b = (1, 2)',
+    ),
+    "const": (
+        "Bind a value to a name that can never be reassigned. Rebinding a const "
+        "(with '=', '+=', or another 'let'/'const') is a compile-time error — "
+        "something Python can't enforce. You can still mutate the object it "
+        "points at; const freezes the name, not the value.",
+        'const PI = 3.14159\nconst KEY: str = "s3cret"\n# PI = 3  # error: cannot reassign a const',
     ),
     "fn": (
         "Define a function with 'fn'. Parameters may have types and defaults; "
@@ -62,8 +69,13 @@ TOPICS = {
         'spawn:\n    print("hi from a thread")',
     ),
     "types": (
-        "Type annotations pass through to Python; not yet checked by Viper.",
-        "let n: int = 0",
+        "Type annotations are checked at transpile time — 'let x: int = \"hi\"' "
+        "is an error, not a silent lie. Viper checks what it can know for sure: "
+        "literals, typed variables and params, and calls whose return type is "
+        "known (builtins, the stdlib, and your own 'fn ... -> T'). It stays "
+        "quiet when it can't be certain (custom classes, arithmetic), so it "
+        "never cries wolf. Annotations still pass through to Python too.",
+        'let n: int = 0\nlet name: str = "Viper"\n# let bad: int = "oops"  # error',
     ),
     "with": (
         "Context managers — auto-cleanup on scope exit.",
@@ -103,6 +115,7 @@ TOPICS = {
         "  shell     sh sh_out which\n"
         "  json/fs   json_parse json_str read_json write_json read_lines ls exists env\n"
         "  data      hexdump sleep now port_open\n"
+        "  crypto/web  xor url_parse qs_parse qs_build json_get\n"
         "  classic   pp read_file write_file clamp\n"
         "See any one with hover in your editor, or 'viper help <name>'.",
         'let body = http_get("https://example.com")\n'

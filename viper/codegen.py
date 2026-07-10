@@ -119,6 +119,27 @@ class _Codegen:
         else:
             self.emit(f"{target} = {self.gen_expr(expr)}", indent, node.meta.line)
 
+    def _stmt_const_stmt(self, node, indent):
+        # const NAME (: type)? = expr  — a single, immutable binding.
+        # Immutability (no reassignment) is enforced by viper/typecheck.py,
+        # which transpile() runs before us; here we just emit the binding.
+        name = node.children[0].value
+        type_node = node.children[1] if (len(node.children) == 3
+                                         and isinstance(node.children[1], Tree)
+                                         and _rule(node.children[1]) == "type") else None
+        expr = node.children[-1]
+        if name in _BUILTIN_NAMES:
+            raise ViperError(
+                f"'const {name}' shadows the builtin '{name}'.\n"
+                f"hint: pick another name (e.g. '{name}_' or 'MY_{name.upper()}')."
+            )
+        self._let_names.add(name)
+        if type_node is not None:
+            self.emit(f"{name}: {self.gen_type(type_node)} = {self.gen_expr(expr)}",
+                      indent, node.meta.line)
+        else:
+            self.emit(f"{name} = {self.gen_expr(expr)}", indent, node.meta.line)
+
     def _stmt_assign_stmt(self, node, indent):
         # children: target_list* "=" expr  (zero or more intermediate target_lists)
         targets = [self.gen_target_list(c) for c in node.children[:-1]]
@@ -819,6 +840,8 @@ def transpile(source: str, filename: str = "<viper>") -> tuple[str, dict]:
         tree = parser.parse(source)
     except Exception as e:
         raise ViperError(format_parse_error(e, source, filename)) from None
+    from .typecheck import raise_first
+    raise_first(tree, source, filename)   # annotations are checked, not decoration
     cg = _Codegen(source, filename)
     for stmt in [c for c in tree.children if isinstance(c, Tree)]:
         cg.gen_stmt(stmt, 0)

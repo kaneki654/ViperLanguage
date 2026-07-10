@@ -4,7 +4,7 @@ if exists("b:current_syntax")
   finish
 endif
 
-syn keyword viperKeyword let fn if elif else while for in match case
+syn keyword viperKeyword let const fn if elif else while for in match case
 syn keyword viperKeyword return break continue pass import from spawn
 syn keyword viperKeyword class try except finally raise del as
 syn keyword viperKeyword with assert global nonlocal
@@ -26,6 +26,7 @@ syn keyword viperBuiltin http_get http_post http_status download
 syn keyword viperBuiltin sh sh_out which
 syn keyword viperBuiltin json_parse json_str read_json write_json read_lines ls exists env
 syn keyword viperBuiltin hexdump sleep now port_open
+syn keyword viperBuiltin xor url_parse qs_parse qs_build json_get
 
 syn match viperNumber "\<\d\+\(\.\d\+\)\?\>"
 syn region viperString start=+"+ skip=+\\"+ end=+"+

@@ -187,3 +187,30 @@ def test_docs_cover_every_prelude_name():
     for name, (sig, doc) in std.STD_DOCS.items():
         assert sig.startswith(name + "(")
         assert doc and not doc.startswith(" ")
+
+
+# ------------------------------------------------------- crypto / web (1.5)
+
+def test_xor_is_involutive_and_cycles_key():
+    assert std.xor(std.xor("secret", "k"), "k") == b"secret"
+    assert std.xor(b"\x00\x01\x02", b"\xff") == b"\xff\xfe\xfd"
+    assert std.xor("abc", "") == b"abc"           # empty key is identity
+
+
+def test_url_parse_breaks_a_url_apart():
+    p = std.url_parse("https://ex.com:8080/a/b?x=1&y=2#frag")
+    assert p["scheme"] == "https" and p["host"] == "ex.com" and p["port"] == 8080
+    assert p["path"] == "/a/b" and p["query"] == {"x": "1", "y": "2"}
+    assert p["fragment"] == "frag"
+
+
+def test_query_string_roundtrip():
+    assert std.qs_parse("a=1&b=two") == {"a": "1", "b": "two"}
+    assert std.qs_build({"a": 1, "b": "two"}) == "a=1&b=two"
+
+
+def test_json_get_nested_and_default():
+    obj = {"a": {"b": [10, 20, 30]}}
+    assert std.json_get(obj, "a.b.1") == 20
+    assert std.json_get(obj, "a.x.y", "missing") == "missing"
+    assert std.json_get(obj, "a.b.99", None) is None

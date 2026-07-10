@@ -3,14 +3,16 @@
 # (Use these techniques only against systems you are allowed to test.)
 
 # 1. "Crack" an unknown MD5 by hashing a small wordlist — a classic CTF task.
-let target = md5("hunter2")
-let wordlist = ["password", "letmein", "hunter2", "admin", "qwerty"]
+#    TARGET and WORDLIST never change, so they are const: reassigning them
+#    anywhere below would be a compile-time error.
+const TARGET = md5("hunter2")
+const WORDLIST = ["password", "letmein", "hunter2", "admin", "qwerty"]
 let cracked = None
-for word in wordlist:
-    if md5(word) == target:
+for word in WORDLIST:
+    if md5(word) == TARGET:
         cracked = word
         break
-print("md5 target :", target)
+print("md5 target :", TARGET)
 print("cracked    ->", cracked)
 
 # 2. Decode a Base64 flag and hexdump the bytes.
@@ -20,12 +22,22 @@ print("flag       :", flag)
 print(hexdump(flag))
 
 # 3. Verify a signed message with HMAC — detect tampering.
-let key = "s3cret"
+const KEY = "s3cret"
 let message = "amount=100&to=alice"
-let signature = hmac256(key, message)
-print("hmac good  :", hmac256(key, message) == signature)
-print("hmac tamper:", hmac256(key, "amount=999&to=eve") == signature)
+let signature = hmac256(KEY, message)
+print("hmac good  :", hmac256(KEY, message) == signature)
+print("hmac tamper:", hmac256(KEY, "amount=999&to=eve") == signature)
 
-# 4. Fingerprint some data and mint a random token.
+# 4. Repeating-key XOR (classic CTF crypto) — reversible with the same key.
+let cipher = xor("attack at dawn", KEY)
+print("xor cipher :", to_hex(cipher))
+print("xor back   :", xor(cipher, KEY) |> bytes.decode(_))
+
+# 5. Pull a target apart like a web pentester would.
+let parts = url_parse("https://victim.test:8443/login?next=/admin&debug=1")
+print("host       :", parts["host"], "port", parts["port"])
+print("query.next :", json_get(parts, "query.next"))
+
+# 6. Fingerprint some data and mint a random token.
 print("sha256     :", sha256(flag))
 print("token      :", rand_token(8), "(fresh every run)")

@@ -26,17 +26,80 @@ echo '{"a":1}' | viper -
 
 ### Why Viper instead of Python?
 
-For a short automation/security/glue script, ceremony is the enemy. Viper's bet
-is that the 20-line-with-5-imports script is the common case, and it should be
-5 lines with none. If you're building a large application, use Python — you
-inherit its whole ecosystem from Viper anyway. Viper is sharpest where scripts
-are small and you want to move fast: pipelines, CTF/CTF-style tooling, ops glue.
+Three things Python won't do for you:
+
+1. **Batteries included.** The 20-line-with-5-imports automation/security script
+   is the common case, and in Viper it's 5 lines with none — hashing, encoding,
+   HTTP, shell, JSON, XOR, and URL parsing are always in scope, and `|>` makes
+   pipelines read left-to-right.
+2. **Annotations that mean something.** `let x: int = "hello"` is a *transpile-time
+   error* in Viper — Python happily runs that lie. Viper checks what it can know
+   for certain and stays quiet when it can't, so types are a real guardrail.
+3. **Real constants.** `const K = 1` can never be reassigned — a *compile-time*
+   guarantee. Python has no such thing (its "constants" are ALL-CAPS on the honor
+   system).
+
+Note the honest ceiling: Viper transpiles *to* Python, so it can't be faster
+than Python or escape the GIL — it inherits the runtime. It wins on *ergonomics
+and safety for small programs*, not raw capability. If you're building a large
+application, use Python. Viper is sharpest for pipelines, CTF tooling, and ops
+glue — where you want to move fast with a guardrail or two.
 
 ---
 
 ## Changelog
 
-### BETA-1.3.0b1 *(current)* — batteries included
+### BETA-1.5.0b1 *(current)* — const + more batteries
+
+**`const` — real, compile-time-enforced immutability** (something Python can't
+do):
+
+- `const K = 1` binds a name once. Reassigning it (`K = 2`), aug-assigning
+  (`K += 1`), rebinding with `let`, or re-declaring `const` is a **transpile-time
+  error**, caught by `run`/`build` and shown live in the editor.
+- It freezes the *name*, not the object — `const xs = []` still allows
+  `xs.append(1)`. `const` values are type-checked and inferred just like `let`,
+  and show as `const` in completion and hover.
+
+**More stdlib** (crypto / web, for the CTF and pentest niche):
+
+- `xor(data, key)` — repeating-key XOR, the classic CTF crypto primitive.
+- `url_parse(url)` — split a URL into scheme/host/port/path/query/fragment.
+- `qs_parse` / `qs_build` — query strings ↔ dicts.
+- `json_get(obj, "a.b.0", default)` — safe nested access by dotted path.
+
+**Honesty note in the docs:** a transpiler cannot beat Python at everything —
+it *is* Python at runtime. Viper's edge is ergonomics and static safety for
+small scripts, not speed or new runtime powers. The README now says so plainly.
+
+**Tests:** +17 (const enforcement across scopes, object-mutation-still-allowed,
+type-flow, editor labelling; crypto/web helpers). 193 total.
+
+### BETA-1.4.0b1 — types that mean something
+
+Viper's type annotations stop being decoration. `let x: int = "hello"` is now a
+**transpile-time error** — caught by `viper run`, `viper build`, and live in the
+editor — not a silent lie that blows up later (or never).
+
+**Type checking:**
+
+- **Checked `let` annotations** — `let n: int = "no"` fails to compile, with a
+  caret-pointed error just like a syntax error. Widening is respected
+  (`let x: float = 5` is fine); `bool`/`int` compatibility follows Python.
+- **Checked return types** — `fn f() -> int: return "no"` is an error too.
+- **Type inference flows** through literals, bytes/raw strings, `True/False/None`,
+  list/dict/set/tuple, typed variables and parameters, builtin calls
+  (`len()` → int), the whole stdlib prelude (`sha256()` → str), and your own
+  `fn ... -> T`. So `let d = sha256(x)` then `let n: int = d` is caught.
+- **Conservative by design** — Viper only flags a mismatch when the value's type
+  is *definitely* known and *definitely* incompatible. Custom classes (which
+  might subclass the annotation), arithmetic, and unknown calls are left alone.
+  A checker that cries wolf is worse than none; false positives are the enemy.
+- **Live in the editor** — mismatches show as red squiggles as you type, via the
+  same LSP that powers completion.
+- **New module** `viper/typecheck.py` (pure, tree-based) + **38 tests**.
+
+### BETA-1.3.0b1 — batteries included
 
 Viper gets a real standard library and the ergonomics to be a language you reach
 for. Everything below is backed by the Python standard library — no third-party

@@ -1,7 +1,7 @@
 """Shared Viper vocabulary — keep editor/syntax/viper.vim in sync with this."""
 
 KEYWORDS = [
-    "let", "fn", "if", "elif", "else", "while", "for", "in", "match", "case",
+    "let", "const", "fn", "if", "elif", "else", "while", "for", "in", "match", "case",
     "return", "break", "continue", "pass", "import", "from", "spawn",
     "and", "or", "not", "is", "True", "False", "None",
     "class", "try", "except", "finally", "raise", "del", "as",

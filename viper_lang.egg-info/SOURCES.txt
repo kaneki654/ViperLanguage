@@ -3,6 +3,7 @@ README.md
 pyproject.toml
 tests/test_analysis.py
 tests/test_beta10.py
+tests/test_const.py
 tests/test_doctor.py
 tests/test_errors.py
 tests/test_examples.py
@@ -12,6 +13,7 @@ tests/test_run.py
 tests/test_std.py
 tests/test_std_integration.py
 tests/test_transpile.py
+tests/test_typecheck.py
 viper/__init__.py
 viper/_ansi.py
 viper/analysis.py
@@ -28,6 +30,7 @@ viper/runtime.py
 viper/sourcemap.py
 viper/std.py
 viper/tutorial.py
+viper/typecheck.py
 viper_lang.egg-info/PKG-INFO
 viper_lang.egg-info/SOURCES.txt
 viper_lang.egg-info/dependency_links.txt

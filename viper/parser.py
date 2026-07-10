@@ -10,6 +10,7 @@ VIPER_GRAMMAR = r"""
     simple_stmt: small_stmt _NL
     ?small_stmt: import_stmt
                | let_stmt
+               | const_stmt
                | assign_stmt
                | aug_assign_stmt
                | return_stmt
@@ -43,8 +44,9 @@ VIPER_GRAMMAR = r"""
     import_target: NAME ("as" NAME)?
     dotted_name: NAME ("." NAME)*
 
-    // --- assignment / let / aug --------------------------------------------
+    // --- assignment / let / const / aug ------------------------------------
     let_stmt: "let" target_list (":" type)? "=" expr
+    const_stmt: "const" NAME (":" type)? "=" expr
     assign_stmt: target_list ("=" target_list)* "=" expr
     aug_assign_stmt: postfix aug_op expr
     !aug_op: "+=" | "-=" | "*=" | "/=" | "//=" | "%=" | "**="

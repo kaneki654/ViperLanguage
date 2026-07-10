@@ -296,6 +296,49 @@ def port_open(host, port, timeout: float = 1.0) -> bool:
         return False
 
 
+# ------------------------------------------------------ crypto / web helpers
+
+def xor(data, key) -> bytes:
+    """Repeating-key XOR of data with key (str or bytes) — classic CTF crypto."""
+    d = _as_bytes(data)
+    k = _as_bytes(key)
+    if not k:
+        return d
+    return bytes(b ^ k[i % len(k)] for i, b in enumerate(d))
+
+
+def url_parse(url) -> dict:
+    """Split a URL into scheme, host, port, path, query (dict), and fragment."""
+    import urllib.parse
+    p = urllib.parse.urlsplit(url)
+    return {"scheme": p.scheme, "host": p.hostname, "port": p.port,
+            "path": p.path, "query": dict(urllib.parse.parse_qsl(p.query)),
+            "fragment": p.fragment}
+
+
+def qs_parse(query) -> dict:
+    """Parse a query string ('a=1&b=2') into a dict."""
+    import urllib.parse
+    return dict(urllib.parse.parse_qsl(str(query)))
+
+
+def qs_build(params) -> str:
+    """Build a query string from a dict ({'a': 1} -> 'a=1')."""
+    import urllib.parse
+    return urllib.parse.urlencode(params)
+
+
+def json_get(obj, path, default=None):
+    """Safely read a nested value by dotted path ('a.b.0'); default if missing."""
+    cur = obj
+    for part in str(path).split("."):
+        try:
+            cur = cur[int(part)] if isinstance(cur, (list, tuple)) else cur[part]
+        except (KeyError, IndexError, TypeError, ValueError):
+            return default
+    return cur
+
+
 # ---------------------------------------------------- classic prelude (kept)
 
 def pp(*objs) -> None:
@@ -345,6 +388,8 @@ PRELUDE = {
         json_parse, json_str, read_json, write_json, read_lines, ls, exists, env,
         # data / misc
         hexdump, sleep, now, port_open,
+        # crypto / web
+        xor, url_parse, qs_parse, qs_build, json_get,
         # classic prelude
         pp, read_file, write_file, clamp,
     )

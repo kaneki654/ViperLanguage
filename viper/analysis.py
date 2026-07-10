@@ -116,7 +116,8 @@ class ClassSymbol:
 class DocumentInfo:
     fns: dict[str, FnSymbol] = field(default_factory=dict)
     classes: dict[str, ClassSymbol] = field(default_factory=dict)
-    lets: dict[str, int] = field(default_factory=dict)          # name -> line
+    lets: dict[str, int] = field(default_factory=dict)          # name -> line (incl. consts)
+    consts: set = field(default_factory=set)                    # names bound with 'const'
     imports: dict[str, str] = field(default_factory=dict)       # alias -> dotted module
     from_imports: dict[str, tuple[str, str]] = field(default_factory=dict)  # name -> (module, original)
 
@@ -300,6 +301,10 @@ def _build_info(tree: Tree, source: str) -> DocumentInfo:
         if r == "let_stmt":
             for name in _collect_names(inner.children[0]):
                 info.lets[name] = inner.meta.line
+        elif r == "const_stmt":
+            name = inner.children[0].value
+            info.lets[name] = inner.meta.line
+            info.consts.add(name)
         elif r == "import_plain":
             for imp in inner.children:
                 dotted = ".".join(t.value for t in imp.children[0].children)
@@ -368,6 +373,7 @@ def parse_error(source: str, cache_key: str | None = None) -> UnexpectedInput | 
 _RE_FN = re.compile(r"^(\s*)(async\s+)?fn\s+(\w+)\s*\(([^)]*)\)\s*(?:->\s*([^:]+))?:")
 _RE_CLASS = re.compile(r"^(\s*)class\s+(\w+)")
 _RE_LET = re.compile(r"^\s*let\s+(\w+(?:\s*,\s*\w+)*)\s*=")
+_RE_CONST = re.compile(r"^\s*const\s+(\w+)\s*(?::[^=]+)?=")
 _RE_IMPORT = re.compile(r"^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?\s*$")
 _RE_FROM = re.compile(r"^\s*from\s+([\w.]+)\s+import\s+([\w, ]+)$")
 
@@ -414,6 +420,11 @@ def _scan_fallback(source: str) -> DocumentInfo:
                                end_line=_block_end(lines, i, indent))
             info.classes[csym.name] = csym
             cur_class = (csym, indent)
+            continue
+        m = _RE_CONST.match(ln)
+        if m:
+            info.lets.setdefault(m.group(1), i)
+            info.consts.add(m.group(1))
             continue
         m = _RE_LET.match(ln)
         if m:
@@ -633,7 +644,7 @@ _CALL_RESULT_TYPES = {
     "ord": "int", "hash": "int", "read_file": "str",
 }
 
-_RE_LET_TYPED = re.compile(r"^\s*let\s+(\w+)\s*(?::\s*([\w\[\]., ]+?)\s*)?=\s*(.+?)\s*$")
+_RE_LET_TYPED = re.compile(r"^\s*(?:let|const)\s+(\w+)\s*(?::\s*([\w\[\]., ]+?)\s*)?=\s*(.+?)\s*$")
 _RE_PARAM = re.compile(r"^\s*(\w+)\s*:\s*([\w\[\]., ]+?)\s*(?:=.*)?$")
 
 
@@ -891,7 +902,9 @@ def document_completions(info: DocumentInfo, line: int) -> list[Completion]:
                                           "variable", f"parameter of {name}.{m.name}",
                                           "", GROUP_LOCAL))
     for name in info.lets:
-        out.append(Completion(name, "variable", "let", "", GROUP_DOCUMENT))
+        out.append(Completion(name, "variable",
+                              "const" if name in info.consts else "let",
+                              "", GROUP_DOCUMENT))
     for alias, module in info.imports.items():
         out.append(Completion(alias, "module", f"import {module}", "", GROUP_DOCUMENT))
     for local, (module, orig) in info.from_imports.items():
@@ -1086,7 +1099,8 @@ def hover(source: str, line: int, character: int,
     if chain in info.lets:
         tname = _local_types(source, line, info).get(chain)
         typed = f": {tname}" if tname else ""
-        return f"```viper\nlet {chain}{typed}\n```\ndefined at line {info.lets[chain]}"
+        kw = "const" if chain in info.consts else "let"
+        return f"```viper\n{kw} {chain}{typed}\n```\ndefined at line {info.lets[chain]}"
     if chain in info.imports:
         obj = _resolve_python(info.imports[chain])
         doc = _doc_head(obj) if obj else ""
