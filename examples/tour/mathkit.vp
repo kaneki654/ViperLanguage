@@ -1,7 +1,7 @@
-# mathkit.vp — a Viper module, imported by demo.vp (new in Beta 1.0)
+# mathkit.vp — a Viper module, imported by demo.vp
 
 fn fib_gen(n):
-    # generators — new in Beta 1.0
+    # generators
     let (a, b) = (0, 1)
     let i = 0
     while i < n:

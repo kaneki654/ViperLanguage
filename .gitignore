@@ -18,3 +18,4 @@ venv/
 # Editors
 .vscode/
 .idea/
+.spyproject/

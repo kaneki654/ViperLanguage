@@ -1,10 +1,10 @@
-# demo.vp — Beta 1.0 feature tour
+# demo.vp — Viper feature tour
 # run me:            viper run demo.vp
 # see a traceback:   viper demo.vp boom
 # build me:          viper build demo.vp
 import sys
 import asyncio
-import mathkit          # <- this is a .vp file! (new in Beta 1.0)
+import mathkit          # <- this is a .vp file!
 
 # 1. generators
 print("fib:", list(mathkit.fib_gen(8)))

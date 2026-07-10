@@ -49,7 +49,23 @@ glue — where you want to move fast with a guardrail or two.
 
 ## Changelog
 
-### BETA-1.7.0b1 *(current)* — built-in linter
+### 0.0.1 *(current)* — first official release 🎉
+
+Viper leaves beta. The version number restarts at **0.0.1** to mark the first
+official (non-alpha, non-beta) release line; everything shipped during the
+`1.x.0b1` beta series below is included.
+
+- **Stable release** — `Development Status :: 5 - Production/Stable`, Python
+  3.10–3.13 supported, 214 tests.
+- **Repo cleanup for release** — stale bytecode caches, build metadata, and IDE
+  config are no longer tracked; project URLs in the package metadata now point
+  to the real repository (`github.com/kaneki654/ViperLanguage`).
+- **Windows test robustness** — the stdlib shell test now resolves the running
+  interpreter instead of trusting a bare `python` on PATH, so the Microsoft
+  Store's zero-byte `python.exe` stub can't break the suite.
+- `examples/beta10/` is now `examples/tour/` — same feature tour, timeless name.
+
+### BETA-1.7.0b1 — built-in linter
 
 Viper now ships a linter — the kind of thing Python makes you install `flake8`
 for. It rides on the same static analysis as the type checker.

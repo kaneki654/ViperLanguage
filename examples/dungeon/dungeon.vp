@@ -1,4 +1,4 @@
-# dungeon.vp — Beta 1.0 stress test. Run: viper run dungeon.vp
+# dungeon.vp — language stress test. Run: viper run dungeon.vp
 import asyncio
 from functools import lru_cache
 from itertools import islice

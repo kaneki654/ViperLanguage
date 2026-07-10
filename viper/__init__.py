@@ -1,6 +1,6 @@
 # single source of truth is pyproject.toml; read the installed metadata, but
 # fall back if it's missing or unreadable (bare checkout, patched metadata).
-_FALLBACK_VERSION = "1.7.0b1"
+_FALLBACK_VERSION = "0.0.1"
 try:
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("viper-lang") or _FALLBACK_VERSION

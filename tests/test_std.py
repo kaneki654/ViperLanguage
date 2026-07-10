@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -114,9 +115,11 @@ def test_now_is_isoish():
 # ------------------------------------------------------------- shell / procs
 
 def test_which_and_sh_out_find_python():
-    py = std.which("python") or std.which("python3")
+    # Run the interpreter we're already in: a bare `python` on PATH may be
+    # the Windows Store stub (a zero-byte alias that prints nothing).
+    py = std.which(os.path.basename(sys.executable)) or std.which("python3") or std.which("python")
     assert py is not None
-    out = std.sh_out(f'"{py}" -c "print(123)"')
+    out = std.sh_out(f'"{sys.executable}" -c "print(123)"')
     assert "123" in out
 
 
